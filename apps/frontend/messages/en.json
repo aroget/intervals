@@ -1,0 +1,155 @@
+{
+  "nav": {
+    "brand": "Intervals Coach",
+    "dashboard": "Dashboard",
+    "plan": "Plan",
+    "newWorkout": "New Workout",
+    "settings": "Settings",
+    "chat": "Chat",
+    "sync": "Sync",
+    "syncing": "Syncing…",
+    "synced": "Synced ✓",
+    "syncError": "Sync failed",
+    "login": "Log in",
+    "logout": "Log out",
+    "toggleMenu": "Toggle menu"
+  },
+  "dashboard": {
+    "health": {
+      "title": "HEALTH METRICS",
+      "hrv": "HRV",
+      "rhr": "RHR",
+      "sleep": "Sleep",
+      "trend": {
+        "rising": "rising",
+        "falling": "falling",
+        "stable": "stable"
+      },
+      "noData": "No wellness data today"
+    },
+    "recovery": {
+      "title": "RECOVERY STATUS",
+      "hrvTrend": "HRV trend",
+      "noData": "No analysis yet"
+    },
+    "workout": {
+      "title": "PRESCRIBED WORKOUT",
+      "rationale": "Rationale",
+      "adjustments": "Adjustments",
+      "structure": "Structure",
+      "warmUp": "Warm-up",
+      "mainSet": "Main set",
+      "coolDown": "Cool-down",
+      "push": "Push to Intervals",
+      "pushing": "Pushing…",
+      "pushed": "Pushed ✓",
+      "pushFailed": "Failed — retry",
+      "generating": "Generating your workout…",
+      "noData": "No workout prescribed yet"
+    },
+    "upcoming": {
+      "title": "NEXT 7 DAYS",
+      "today": "Today",
+      "generating": "Generating week plan…",
+      "noData": "No upcoming workouts",
+      "rationale": "Rationale",
+      "adjustments": "Adjustments"
+    },
+    "recent": {
+      "title": "RECENT WORKOUTS",
+      "noData": "No recent activities synced yet."
+    },
+    "progress": {
+      "title": "SPORT PROGRESS"
+    }
+  },
+  "workoutForm": {
+    "title": "New Workout",
+    "discipline": "Discipline",
+    "duration": "Duration",
+    "durationMin": "{value} min",
+    "durationRange": {
+      "min": "15 min",
+      "max": "4 h"
+    },
+    "notes": "Notes / Focus (optional)",
+    "notesPlaceholder": "e.g. tempo intervals, hilly route, keep it conversational…",
+    "generate": "Generate Workout",
+    "generating": "Generating…",
+    "recoveryContext": "Recovery Context",
+    "flags": "Flags",
+    "coachRationale": "Coach Rationale",
+    "planAdjustments": "Plan Adjustments",
+    "push": "Push to Intervals.icu",
+    "pushing": "Pushing…",
+    "pushed": "Pushed to Intervals.icu calendar ✓"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Your athlete profile and training preferences.",
+    "tabs": {
+      "account": "Account",
+      "goals": "Goals",
+      "training": "Training"
+    },
+    "save": "Save Changes",
+    "saving": "Saving…",
+    "saved": "Saved ✓",
+    "sections": {
+      "profile": "Profile",
+      "disciplines": "Disciplines",
+      "weeklyHours": "Max Training Hours per Day",
+      "weeklyHoursHint": "The coach will not prescribe more than this per day.",
+      "cycle": "Training Cycle",
+      "thresholds": "Performance Thresholds",
+      "thresholdsHint": "Auto-populated from your Intervals.icu profile on sync. Edit manually if needed. Used by the coach to prescribe exact power and pace targets.",
+      "accountInfo": "Intervals.icu Account",
+      "dangerZone": "Danger Zone"
+    },
+    "fields": {
+      "athleteId": "Athlete ID",
+      "name": "Name",
+      "namePlaceholder": "Your name",
+      "memberSince": "Member since",
+      "goals": "Training Goals",
+      "goalsPlaceholder": "e.g. Complete a sprint triathlon, improve 5K time…",
+      "goalsHint": "Describe what you want to achieve. The coach uses this to shape your training plan.",
+      "philosophy": "Training Philosophy",
+      "philosophyPlaceholder": "Select a philosophy…",
+      "cycleStartDate": "Cycle Start Date",
+      "cycleHint": "Week 1 = base, Week 2 = build, Week 3 = peak, Week 4 = recovery. The cycle repeats every 28 days from this date.",
+      "ftp": "Cycling FTP",
+      "ftpPlaceholder": "e.g. 280",
+      "lthr": "Lactate Threshold HR",
+      "lthrPlaceholder": "e.g. 162",
+      "runThreshold": "Running Threshold Pace",
+      "runThresholdPlaceholder": "e.g. 4:15"
+    },
+    "philosophies": {
+      "polarized": "Polarized",
+      "polarizedDesc": "~80% easy, ~20% high-intensity — no moderate zone",
+      "pyramidal": "Pyramidal",
+      "pyramidalDesc": "Mostly easy, some moderate, a little hard",
+      "linear": "Linear",
+      "linearDesc": "Traditional progressive overload with gradual increases"
+    },
+    "days": {
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat",
+      "sunday": "Sun"
+    },
+    "rest": "Rest",
+    "deleteAccount": {
+      "label": "Delete Account",
+      "hint": "Permanently delete all your data from this app. This cannot be undone.",
+      "confirm": "Type DELETE to confirm",
+      "confirmPlaceholder": "DELETE",
+      "button": "Delete My Data",
+      "deleting": "Deleting…"
+    }
+  }
+}

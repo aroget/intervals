@@ -1,0 +1,1124 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
+import { useTranslations } from "next-intl";
+import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
+const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
+
+const fetcher = (url: string) => fetch(url).then((r: any) => r.json());
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface WellnessRow {
+  log_date: string;
+  hrv: number | null;
+  hrv_score: number | null;
+  rhr: number | null;
+  sleep_score: number | null;
+  sleep_hours: number | null;
+  sleep_quality: string | null;
+}
+
+interface WorkoutPhase {
+  name: string;
+  durationMin: number;
+  description: string;
+  targetZone?: string;
+}
+
+interface Analysis {
+  analysis_date: string;
+  readiness_score: number;
+  hrv_trend: string;
+  agent_output: {
+    readiness: string;
+    summary: string;
+    yesterdayImpact?: string;
+    trainingImplication?: string;
+    flags: string[];
+    recommendation: string;
+  };
+}
+
+interface Workout {
+  sport: string;
+  duration_min: number;
+  intensity: string;
+  rationale: string;
+  agent_output: {
+    sport: string;
+    durationMin: number;
+    intensity: string;
+    structure: { phases: WorkoutPhase[] };
+    workoutStructure?: string;
+    rationale?: string;
+    adjustmentsFromPlan?: string[];
+    periodizationPhase: string;
+    energySystem?: string;
+    phases?: { label: string; durationMin: number; intensityPct: number }[];
+  };
+}
+
+interface Activity {
+  id: string;
+  activity_date: string;
+  sport: string;
+  name: string | null;
+  duration_secs: number | null;
+  distance_m: number | null;
+  tss: number | null;
+  intensity_factor: number | null;
+  atl: number | null;
+  ctl: number | null;
+  joules: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  avg_power: number | null;
+  normalized_power: number | null;
+  decoupling: number | null;
+  elevation_m: number | null;
+  rpe: number | null;
+  athlete_comments: string | null;
+}
+
+interface SportProgress {
+  sport: string;
+  summary: string;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const readinessColor: Record<string, string> = {
+  high: "text-teal",
+  moderate: "text-orange",
+  low: "text-peach",
+  rest: "text-orange",
+};
+
+const intensityBorder: Record<string, string> = {
+  easy: "border-border",
+  moderate: "border-peach",
+  hard: "border-orange",
+  rest: "border-border",
+};
+
+const SPORT_ICONS: Record<string, string> = {
+  run: "🏃",
+  bike: "🚴",
+  swim: "🏊",
+  strength: "🏋️",
+};
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function fmtDuration(secs: number | null): string {
+  if (!secs) return "—";
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m} min`;
+}
+
+function fmtDist(m: number | null): string {
+  if (!m) return "—";
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+function fmtKcal(joules: number | null): string {
+  if (!joules) return "—";
+  // 1 kJ ≈ 1 kcal (standard cycling/running approximation at ~25% efficiency)
+  return `~${Math.round(joules / 1000)} kcal`;
+}
+
+// ── WorkoutStructureView ──────────────────────────────────────────────────────
+
+interface ParsedStep {
+  duration: string;
+  intensity: string;
+}
+interface ParsedSection {
+  type: "step" | "intervals";
+  count?: number;
+  steps: ParsedStep[];
+}
+
+function parseStep(line: string): ParsedStep | null {
+  const clean = line.replace(/^[-•]\s*/, ""); // strip optional leading - or bullet
+
+  // Intervals.icu compact format: "15m description" or "15m\ndescription"
+  let m = clean.match(/^(\d+)m\s+(.+)$/i);
+  if (m) return { duration: `${m[1]} min`, intensity: m[2].trim() };
+
+  // Natural language: "20 min description" or "3x10 min description"
+  m = clean.match(/^(\d+(?:x\d+)?)\s+min\s+(.+)$/i);
+  if (m) return { duration: `${m[1]} min`, intensity: m[2].trim() };
+
+  return null;
+}
+
+function parseWorkoutStructure(text: string): ParsedSection[] {
+  const sections: ParsedSection[] = [];
+  for (const block of text.trim().split(/\n\s*\n/)) {
+    const lines = block.trim().split("\n").filter(Boolean);
+    if (!lines.length) continue;
+    const m = lines[0].match(/^(\d+)x$/i);
+    if (m) {
+      const steps = lines
+        .slice(1)
+        .map(parseStep)
+        .filter((s): s is ParsedStep => !!s);
+      if (steps.length)
+        sections.push({ type: "intervals", count: parseInt(m[1]), steps });
+    } else {
+      for (const line of lines) {
+        const step = parseStep(line);
+        if (step) sections.push({ type: "step", steps: [step] });
+      }
+    }
+  }
+  return sections;
+}
+
+function WorkoutStructureView({ text }: { text: string }) {
+  const t = useTranslations("dashboard.workout");
+  const sections = parseWorkoutStructure(text);
+  let stepCount = 0;
+  const totalSteps = sections.reduce(
+    (n, s) => n + (s.type === "step" ? 1 : 0),
+    0,
+  );
+
+  const label = (i: number, total: number) => {
+    if (i === 0) return t("warmUp");
+    if (i === total - 1) return t("coolDown");
+    return t("mainSet");
+  };
+
+  const labelStyle: Record<string, string> = {
+    [t("warmUp")]: "text-teal",
+    [t("mainSet")]: "text-orange",
+    [t("coolDown")]: "text-teal",
+  };
+
+  return (
+    <div className="space-y-4 pt-3 border-t border-border">
+      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+        {t("structure")}
+      </p>
+      <div className="space-y-3">
+        {sections.map((section, si) => {
+          if (section.type === "intervals") {
+            return section.steps.map((step, i) => (
+              <div key={`${si}-${i}`}>
+                {i === 0 && (
+                  <p
+                    className={`text-sm font-semibold mb-0.5 ${labelStyle[t("mainSet")]}`}
+                  >
+                    {t("mainSet")}
+                  </p>
+                )}
+                <p className="text-sm text-text">
+                  {step.duration} {step.intensity}
+                </p>
+              </div>
+            ));
+          }
+          const lbl = label(stepCount, totalSteps);
+          stepCount++;
+          const step = section.steps[0];
+          return (
+            <div key={si}>
+              <p
+                className={`text-sm font-semibold mb-0.5 ${labelStyle[lbl] ?? "text-muted"}`}
+              >
+                {lbl}
+              </p>
+              <p className="text-sm text-text">
+                {step.duration} {step.intensity}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── PushButton ────────────────────────────────────────────────────────────────
+
+function PushButton({ workout }: { workout: Workout }) {
+  const t = useTranslations("dashboard.workout");
+  const [state, setState] = useState<"idle" | "pushing" | "done" | "error">(
+    "idle",
+  );
+
+  async function push() {
+    setState("pushing");
+    try {
+      const res = await fetch(`${API}/workout/${ATHLETE_ID}/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workout: workout.agent_output }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setState("done");
+      setTimeout(() => setState("idle"), 3000);
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 3000);
+    }
+  }
+
+  const label = {
+    idle: t("push"),
+    pushing: t("pushing"),
+    done: t("pushed"),
+    error: t("pushFailed"),
+  }[state];
+
+  return (
+    <button
+      onClick={push}
+      disabled={state === "pushing" || state === "done"}
+      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+        state === "done"
+          ? "text-teal bg-teal/10"
+          : state === "error"
+            ? "text-orange bg-orange/10"
+            : "text-muted hover:text-text hover:bg-[var(--bg-assistant)] border border-border"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ── CardSkeleton ──────────────────────────────────────────────────────────────
+
+function CardSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="rounded-2xl border border-border bg-bg-card p-6 shadow-sm animate-pulse space-y-4">
+      <div className="h-3 w-24 rounded bg-border" />
+      <div className="space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-4 rounded bg-border ${i % 2 === 0 ? "w-full" : "w-3/4"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Activity Modal ────────────────────────────────────────────────────────────
+
+function ActivityModal({
+  activity,
+  onClose,
+}: {
+  activity: Activity;
+  onClose: () => void;
+}) {
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  useEffect(() => {
+    setLoadingAi(true);
+    fetch(`${API}/analysis/${ATHLETE_ID}/activity-analysis/${activity.id}`)
+      .then((r: any) => r.json())
+      .then((d) => setAiAnalysis(d.analysis ?? null))
+      .catch(() => setAiAnalysis(null))
+      .finally(() => setLoadingAi(false));
+  }, [activity.id]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const dateLabel = new Date(
+    activity.activity_date + "T00:00:00",
+  ).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-lg bg-bg-card border border-border rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* Modal header */}
+        <div className="sticky top-0 bg-bg-card border-b border-border px-6 py-4 flex items-start justify-between gap-4 rounded-t-2xl">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">
+                {SPORT_ICONS[activity.sport] ?? "🏅"}
+              </span>
+              <h2 className="font-bold text-text text-base">
+                {activity.name ?? activity.sport}
+              </h2>
+            </div>
+            <p className="text-muted text-xs mt-0.5">{dateLabel}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-text transition-colors p-1 rounded-lg"
+            aria-label="Close"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Key metrics grid */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Duration", value: fmtDuration(activity.duration_secs) },
+              { label: "Distance", value: fmtDist(activity.distance_m) },
+              { label: "Energy", value: fmtKcal(activity.joules) },
+              {
+                label: "TSS",
+                value:
+                  activity.tss != null
+                    ? Math.round(activity.tss).toString()
+                    : "—",
+              },
+              {
+                label: "IF",
+                value:
+                  activity.intensity_factor != null
+                    ? activity.intensity_factor.toFixed(2)
+                    : "—",
+              },
+              {
+                label: "RPE",
+                value: activity.rpe != null ? `${activity.rpe}/10` : "—",
+              },
+              {
+                label: "Avg HR",
+                value:
+                  activity.avg_hr != null
+                    ? `${Math.round(activity.avg_hr)} bpm`
+                    : "—",
+              },
+              {
+                label: "Avg Power",
+                value:
+                  activity.avg_power != null
+                    ? `${Math.round(activity.avg_power)} W`
+                    : "—",
+              },
+              {
+                label: "Decoupling",
+                value:
+                  activity.decoupling != null
+                    ? `${activity.decoupling.toFixed(1)}%`
+                    : "—",
+              },
+              {
+                label: "Elevation",
+                value:
+                  activity.elevation_m != null
+                    ? `${Math.round(activity.elevation_m)} m`
+                    : "—",
+              },
+              {
+                label: "ATL",
+                value:
+                  activity.atl != null
+                    ? Math.round(activity.atl).toString()
+                    : "—",
+              },
+              {
+                label: "CTL",
+                value:
+                  activity.ctl != null
+                    ? Math.round(activity.ctl).toString()
+                    : "—",
+              },
+            ]
+              .filter(({ value }) => value !== "—")
+              .map(({ label, value }) => (
+                <div key={label} className="bg-bg rounded-xl p-3 text-center">
+                  <p className="text-muted text-[10px] font-semibold uppercase tracking-widest">
+                    {label}
+                  </p>
+                  <p className="text-text font-semibold text-sm mt-0.5 tabular-nums">
+                    {value}
+                  </p>
+                </div>
+              ))}
+          </div>
+
+          {/* Athlete notes */}
+          {activity.athlete_comments && (
+            <div className="bg-bg rounded-xl px-4 py-3">
+              <p className="text-muted text-xs font-semibold uppercase tracking-widest mb-1">
+                Your notes
+              </p>
+              <p className="text-text text-sm leading-relaxed">
+                {activity.athlete_comments}
+              </p>
+            </div>
+          )}
+
+          {/* AI post-workout analysis */}
+          <div className="border-t border-border pt-4 space-y-2">
+            <p className="text-muted text-xs font-semibold uppercase tracking-widest">
+              Coach Analysis
+            </p>
+            {loadingAi ? (
+              <div className="flex items-center gap-2 text-muted text-sm animate-pulse">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce [animation-delay:-0.3s]" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce [animation-delay:-0.15s]" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce" />
+                <span className="ml-1">Analyzing…</span>
+              </div>
+            ) : aiAnalysis ? (
+              <p className="text-text text-sm leading-relaxed">{aiAnalysis}</p>
+            ) : (
+              <p className="text-muted text-sm">No analysis available.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Recent Activity Row ───────────────────────────────────────────────────────
+
+function ActivityRow({
+  activity,
+  onClick,
+}: {
+  activity: Activity;
+  onClick: () => void;
+}) {
+  const date = new Date(activity.activity_date + "T00:00:00");
+  const dayLabel = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-border hover:border-teal hover:bg-[var(--bg-assistant)] transition-colors text-left group"
+    >
+      <span className="text-xl shrink-0">
+        {SPORT_ICONS[activity.sport] ?? "🏅"}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="font-semibold text-text text-sm capitalize">
+            {activity.sport}
+          </span>
+          {activity.name && activity.name !== activity.sport && (
+            <span className="text-muted text-xs truncate">{activity.name}</span>
+          )}
+        </div>
+        <p className="text-muted text-xs mt-0.5">{dayLabel}</p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        {activity.tss != null && (
+          <span className="text-xs text-muted font-medium tabular-nums">
+            {Math.round(activity.tss)} TSS
+          </span>
+        )}
+        <span className="text-orange text-sm font-semibold tabular-nums">
+          {fmtDuration(activity.duration_secs)}
+        </span>
+        <svg
+          className="w-4 h-4 text-muted group-hover:text-teal transition-colors"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+// ── Main DashboardPage ────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const t = useTranslations("dashboard");
+
+  const {
+    data,
+    isLoading,
+    mutate: mutateToday,
+  } = useSWR<{ analysis: Analysis; workout: Workout }>(
+    `${API}/analysis/${ATHLETE_ID}/today`,
+    fetcher,
+    { refreshInterval: 60_000 },
+  );
+
+  const { data: wellnessData, isLoading: wellnessLoading } = useSWR<{
+    wellness: WellnessRow[];
+  }>(`${API}/analysis/${ATHLETE_ID}/wellness`, fetcher, {
+    refreshInterval: 60_000,
+  });
+
+  const { data: activitiesData, isLoading: activitiesLoading } = useSWR<{
+    activities: Activity[];
+  }>(`${API}/analysis/${ATHLETE_ID}/recent-activities`, fetcher, {
+    refreshInterval: 120_000,
+  });
+
+  const { data: progressData } = useSWR<{ sportProgress: SportProgress[] }>(
+    `${API}/analysis/${ATHLETE_ID}/sport-progress`,
+    fetcher,
+    { refreshInterval: 300_000 },
+  );
+
+  const [analyzingToday, setAnalyzingToday] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!isLoading && data && !data.workout && !analyzingToday) {
+      setAnalyzingToday(true);
+      fetch(`${API}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
+        .then(() => mutateToday())
+        .finally(() => setAnalyzingToday(false));
+    }
+  }, [data, isLoading]);
+
+  const closeModal = useCallback(() => setSelectedActivity(null), []);
+
+  const allDays = wellnessData?.wellness ?? [];
+  const today = allDays[0] ?? null;
+
+  function weekAvg(key: keyof WellnessRow): number | null {
+    const vals = allDays
+      .slice(1)
+      .map((r: any) => r[key] as number | null)
+      .filter((v): v is number => v != null);
+    if (!vals.length) return null;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+
+  function trend(
+    curr: number | null,
+    avg: number | null | undefined,
+    threshold = 1,
+  ) {
+    if (curr == null || avg == null) return null;
+    const diff = curr - avg;
+    if (Math.abs(diff) < threshold) return "stable";
+    return diff > 0 ? "up" : "down";
+  }
+
+  const trendIcon = (tr: ReturnType<typeof trend>) =>
+    tr === "up" ? "↑" : tr === "down" ? "↓" : tr === "stable" ? "—" : "";
+  const trendColor = (tr: ReturnType<typeof trend>) => {
+    if (tr === "stable" || tr == null) return "text-muted";
+    return "text-orange";
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-bg px-4 py-8">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <CardSkeleton rows={1} />
+          <CardSkeleton rows={3} />
+          <CardSkeleton rows={4} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && !analyzingToday && !data?.analysis && !data?.workout) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-bg text-muted gap-4">
+        <p className="font-medium">No analysis found for today.</p>
+        <button
+          onClick={() =>
+            fetch(`${API}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
+          }
+          className="rounded-xl bg-orange hover:bg-peach px-5 py-2 text-white text-sm font-semibold transition-colors"
+        >
+          Run Analysis Now
+        </button>
+      </div>
+    );
+  }
+
+  const { analysis, workout } = data!;
+
+  return (
+    <>
+      {/* Activity detail modal */}
+      {selectedActivity && (
+        <ActivityModal activity={selectedActivity} onClose={closeModal} />
+      )}
+
+      <div className="min-h-screen bg-bg px-4 py-8">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Health Metrics Card */}
+          {wellnessLoading ? (
+            <CardSkeleton rows={1} />
+          ) : today ? (
+            <div className="rounded-2xl border border-border bg-bg-card px-6 py-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                  {t("health.title")}
+                </h2>
+                <span className="text-xs text-muted">{today.log_date}</span>
+              </div>
+              <div className="flex justify-around gap-4">
+                {/* HRV */}
+                <div className="space-y-1 text-center">
+                  <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                    {today.hrv_score != null ? "HRV Score" : t("health.hrv")}
+                  </p>
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-3xl font-bold text-teal tabular-nums">
+                      {today.hrv_score != null
+                        ? today.hrv_score
+                        : today.hrv != null
+                          ? today.hrv.toFixed(0)
+                          : "–"}
+                    </span>
+                    <span className="text-sm font-semibold text-teal">
+                      {today.hrv_score != null ? "/100" : "ms"}
+                    </span>
+                    <span
+                      className={`text-sm font-semibold ${today.hrv_score != null ? trendColor(trend(today.hrv_score, weekAvg("hrv_score"))) : trendColor(trend(today.hrv, weekAvg("hrv"), 2))}`}
+                    >
+                      {today.hrv_score != null
+                        ? trendIcon(
+                            trend(today.hrv_score, weekAvg("hrv_score")),
+                          )
+                        : trendIcon(trend(today.hrv, weekAvg("hrv"), 2))}
+                    </span>
+                  </div>
+                  {today.hrv_score != null && today.hrv != null && (
+                    <p className="text-xs text-muted">
+                      {today.hrv.toFixed(1)} ms
+                    </p>
+                  )}
+                </div>
+
+                {/* RHR */}
+                <div className="space-y-1 text-center">
+                  <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                    {t("health.rhr")}
+                  </p>
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-3xl font-bold text-teal tabular-nums">
+                      {today.rhr ?? "–"}
+                    </span>
+                    <span className="text-sm font-semibold text-teal">bpm</span>
+                    <span
+                      className={`text-sm font-semibold ${trendColor(trend(today.rhr, weekAvg("rhr")))}`}
+                    >
+                      {trendIcon(trend(today.rhr, weekAvg("rhr")))}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sleep hours or Sleep Score */}
+                <div className="space-y-1 text-center">
+                  <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                    {today.sleep_hours != null
+                      ? t("health.sleep")
+                      : "Sleep Score"}
+                  </p>
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-3xl font-bold text-teal tabular-nums">
+                      {today.sleep_hours != null
+                        ? today.sleep_hours.toFixed(1)
+                        : (today.sleep_score ?? "–")}
+                    </span>
+                    <span className="text-sm font-semibold text-teal">
+                      {today.sleep_hours != null ? "h" : "/100"}
+                    </span>
+                    <span
+                      className={`text-sm font-semibold ${today.sleep_hours != null ? trendColor(trend(today.sleep_hours, weekAvg("sleep_hours"), 0.25)) : trendColor(trend(today.sleep_score, weekAvg("sleep_score"), 3))}`}
+                    >
+                      {today.sleep_hours != null
+                        ? trendIcon(
+                            trend(
+                              today.sleep_hours,
+                              weekAvg("sleep_hours"),
+                              0.25,
+                            ),
+                          )
+                        : trendIcon(
+                            trend(today.sleep_score, weekAvg("sleep_score"), 3),
+                          )}
+                    </span>
+                  </div>
+                  {today.sleep_hours != null && today.sleep_score != null && (
+                    <p className="text-xs text-muted">
+                      score {today.sleep_score}/100
+                    </p>
+                  )}
+                </div>
+
+                {/* Sleep Score (separate column when sleep_hours is available) */}
+                {today.sleep_hours != null && (
+                  <div className="space-y-1 text-center">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                      Sleep Score
+                    </p>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-3xl font-bold text-teal tabular-nums">
+                        {today.sleep_score ?? "–"}
+                      </span>
+                      <span className="text-sm font-semibold text-teal">
+                        /100
+                      </span>
+                      <span
+                        className={`text-sm font-semibold ${trendColor(trend(today.sleep_score, weekAvg("sleep_score"), 3))}`}
+                      >
+                        {trendIcon(
+                          trend(today.sleep_score, weekAvg("sleep_score"), 3),
+                        )}
+                      </span>
+                    </div>
+                    {today.sleep_quality && (
+                      <p className="text-xs text-muted capitalize">
+                        {today.sleep_quality}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Readiness */}
+                {analysis && (
+                  <div className="space-y-1 text-center">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                      Readiness
+                    </p>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-3xl font-bold tabular-nums text-teal">
+                        {analysis.readiness_score}
+                      </span>
+                      <span className="text-sm font-semibold text-teal">
+                        /100
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Recovery Card */}
+          {!isLoading &&
+            analysis &&
+            (() => {
+              // derive yesterday's activity from recent activities
+              const yesterdayDate = new Date();
+              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+              const yesterdayAct =
+                activitiesData?.activities?.find(
+                  (a) => a.activity_date === yesterdayStr,
+                ) ?? null;
+              // most recent activity for ATL/CTL
+              const latestAct = activitiesData?.activities?.[0] ?? null;
+              const tsb =
+                latestAct?.ctl != null && latestAct?.atl != null
+                  ? Math.round(latestAct.ctl - latestAct.atl)
+                  : null;
+
+              return (
+                <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                      {t("recovery.title")}
+                    </h2>
+                    <span className="text-xs font-medium text-muted">
+                      {analysis.analysis_date}
+                    </span>
+                  </div>
+
+                  {/* Yesterday's session */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                      Yesterday
+                    </p>
+                    {yesterdayAct ? (
+                      <p className="text-sm font-semibold text-text capitalize">
+                        {yesterdayAct.sport}
+                        <span className="text-muted font-normal">
+                          {" "}
+                          · {Math.round(
+                            (yesterdayAct.duration_secs ?? 0) / 60,
+                          )}{" "}
+                          min
+                          {yesterdayAct.tss != null &&
+                            ` · TSS ${Math.round(yesterdayAct.tss)}`}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted">
+                        Rest day — no activity recorded
+                      </p>
+                    )}
+                    {analysis.agent_output?.yesterdayImpact ? (
+                      <p className="text-sm text-text leading-relaxed">
+                        {analysis.agent_output.yesterdayImpact}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-text leading-relaxed">
+                        {analysis.agent_output?.summary}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Training implication */}
+                  {(analysis.agent_output?.trainingImplication ||
+                    analysis.agent_output?.recommendation) && (
+                    <div className="space-y-1.5 pt-3 border-t border-border">
+                      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                        Today's prescription context
+                      </p>
+                      <p className="text-sm text-text leading-relaxed">
+                        {analysis.agent_output.trainingImplication ??
+                          analysis.agent_output.recommendation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ATL / CTL / TSB */}
+                  {latestAct &&
+                    (latestAct.atl != null || latestAct.ctl != null) && (
+                      <div className="flex items-center gap-2 pt-3 border-t border-border flex-wrap">
+                        {latestAct.atl != null && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange/10 text-orange border border-orange/20">
+                            ATL&nbsp;{Math.round(latestAct.atl)}
+                          </span>
+                        )}
+                        {latestAct.ctl != null && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal/10 text-teal border border-teal/20">
+                            CTL&nbsp;{Math.round(latestAct.ctl)}
+                          </span>
+                        )}
+                        {tsb !== null && (
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                              tsb >= 0
+                                ? "bg-teal/10 text-teal border-teal/20"
+                                : "bg-orange/10 text-orange border-orange/20"
+                            }`}
+                          >
+                            TSB&nbsp;{tsb > 0 ? `+${tsb}` : tsb}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                  {/* Flags */}
+                  {analysis.agent_output?.flags?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.agent_output.flags.map((flag, i) => (
+                        <span
+                          key={i}
+                          className="text-xs bg-peach/20 border border-peach text-orange rounded-full px-3 py-1 font-medium"
+                        >
+                          {flag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* Workout Card */}
+          {!isLoading && (
+            <div
+              className={`rounded-2xl border bg-bg-card p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                  {t("workout.title")}
+                </h2>
+                {workout?.agent_output?.periodizationPhase && (
+                  <span className="text-xs font-medium text-muted capitalize">
+                    {workout.agent_output.periodizationPhase}
+                  </span>
+                )}
+              </div>
+              {workout ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-3xl font-bold text-teal capitalize">
+                        {workout.sport}
+                      </span>
+                      <span className="text-orange font-semibold">
+                        {workout.duration_min} min
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <WorkoutBadge
+                        energySystem={workout.agent_output?.energySystem}
+                        intensity={workout.intensity}
+                      />
+                      <PushButton workout={workout} />
+                    </div>
+                  </div>
+                  <p className="text-text text-sm leading-relaxed">
+                    {workout.rationale}
+                  </p>
+                  {workout.agent_output?.phases &&
+                  workout.agent_output.phases.length > 0 ? (
+                    <div className="pt-3 border-t border-border space-y-3">
+                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                        {t("workout.structure")}
+                      </p>
+                      <WorkoutChart
+                        phases={workout.agent_output.phases}
+                        sport={workout.agent_output.sport}
+                      />
+                      {workout.agent_output.workoutStructure && (
+                        <pre className="text-sm text-text font-sans whitespace-pre-wrap leading-relaxed">
+                          {workout.agent_output.workoutStructure}
+                        </pre>
+                      )}
+                    </div>
+                  ) : workout.agent_output?.workoutStructure ? (
+                    <div className="pt-3 border-t border-border space-y-2">
+                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                        {t("workout.structure")}
+                      </p>
+                      <pre className="text-sm text-text font-sans whitespace-pre-wrap leading-relaxed">
+                        {workout.agent_output.workoutStructure}
+                      </pre>
+                    </div>
+                  ) : workout.agent_output?.structure?.phases?.length > 0 ? (
+                    <div className="space-y-3 pt-3 border-t border-border">
+                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                        {t("workout.structure")}
+                      </p>
+                      {workout.agent_output.structure.phases.map((phase, i) => (
+                        <div key={i} className="flex gap-4 text-sm">
+                          <span className="text-orange font-semibold w-12 shrink-0 tabular-nums">
+                            {phase.durationMin}m
+                          </span>
+                          <div>
+                            <span className="font-semibold text-text">
+                              {phase.name}
+                            </span>
+                            {phase.targetZone && (
+                              <span className="text-muted">
+                                {" "}
+                                · {phase.targetZone}
+                              </span>
+                            )}
+                            <p className="text-muted text-xs mt-0.5">
+                              {phase.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted">
+                  {analyzingToday
+                    ? t("workout.generating")
+                    : t("workout.noData")}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Recent Workouts Card */}
+          <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
+            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+              {t("recent.title")}
+            </h2>
+            {activitiesLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-14 rounded-xl bg-border/40 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : activitiesData?.activities &&
+              activitiesData.activities.length > 0 ? (
+              <div className="space-y-2">
+                {activitiesData.activities.map((a) => (
+                  <ActivityRow
+                    key={a.id}
+                    activity={a}
+                    onClick={() => setSelectedActivity(a)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">{t("recent.noData")}</p>
+            )}
+          </div>
+
+          {/* Sport Progress Card */}
+          {progressData?.sportProgress &&
+            progressData.sportProgress.length > 0 && (
+              <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
+                <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                  {t("progress.title")}
+                </h2>
+                <div className="space-y-3">
+                  {progressData.sportProgress.map((sp) => (
+                    <div key={sp.sport} className="flex items-start gap-3">
+                      <span className="text-xl shrink-0 mt-0.5">
+                        {SPORT_ICONS[sp.sport] ?? "🏅"}
+                      </span>
+                      <div>
+                        <p className="text-text text-xs font-semibold capitalize mb-0.5">
+                          {sp.sport}
+                        </p>
+                        <p className="text-muted text-sm leading-relaxed">
+                          {sp.summary}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+        </div>
+      </div>
+    </>
+  );
+}

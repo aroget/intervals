@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* ── Semantic design tokens ──────────────────────────────────────────────── */
+:root {
+  /* Light mode — WCAG AA compliant */
+  --bg: #ffffff;
+  --bg-card: #f8fffe;
+  --bg-assistant: #eafaf9;
+  --border: #cbf3f0;
+  --text: #0e2b28; /* body text  ~18:1 on white */
+  --text-muted: #2d5c56; /* muted text ~5.2:1 on white */
+  --teal: #0d7a72; /* headings   ~4.8:1 on white */
+  --orange: #e08800; /* CTAs on white ~3.5:1 for large, #FF9F1C used decoratively */
+  --peach: #ffbf69;
+  --mint: #cbf3f0;
+  --orange-bright: #ff9f1c; /* decorative / on dark surfaces only */
+}
+
+.dark {
+  --bg: #0a1a19;
+  --bg-card: #112120;
+  --bg-assistant: #1a3330;
+  --border: #1e3d3a;
+  --text: #e8f9f8; /* near-mint body text */
+  --text-muted: rgba(203, 243, 240, 0.65);
+  --teal: #2ec4b6; /* vibrant teal headings on dark */
+  --orange: #ff9f1c;
+  --peach: #ffbf69;
+  --mint: #1e3d3a;
+  --orange-bright: #ff9f1c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-card: var(--bg-card);
+  --color-bg-assistant: var(--bg-assistant);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-teal: var(--teal);
+  --color-orange: var(--orange);
+  --color-orange-bright: var(--orange-bright);
+  --color-peach: var(--peach);
+  --color-mint: var(--mint);
+}
+
+html {
+  font-size: 17px;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "Plus Jakarta Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Markdown prose styles (chat assistant messages) ─────────────────────── */
+.prose-chat {
+  line-height: 1.65;
+}
+.prose-chat p {
+  margin-bottom: 0.6rem;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat ul,
+.prose-chat ol {
+  padding-left: 1.25rem;
+  margin-bottom: 0.6rem;
+}
+.prose-chat li {
+  margin-bottom: 0.2rem;
+}
+.prose-chat strong {
+  font-weight: 600;
+}
+.prose-chat em {
+  font-style: italic;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+  margin-top: 0.8rem;
+  color: var(--teal);
+}
+.prose-chat h1 {
+  font-size: 1.1em;
+}
+.prose-chat h2 {
+  font-size: 1.05em;
+}
+.prose-chat h3 {
+  font-size: 1em;
+}
+.prose-chat code {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  font-family: ui-monospace, monospace;
+}
+.prose-chat pre {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.6rem;
+}
+.prose-chat pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.prose-chat blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+.prose-chat a {
+  color: var(--teal);
+  text-decoration: underline;
+}
+.prose-chat hr {
+  border-color: var(--border);
+  margin: 0.75rem 0;
+}
+
+/* Tables */
+.prose-chat table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  font-size: 0.875em;
+}
+.prose-chat th,
+.prose-chat td {
+  padding: 0.3rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.prose-chat th {
+  font-weight: 600;
+  color: var(--teal);
+  border-bottom: 2px solid var(--border);
+}
+.prose-chat tr:last-child td {
+  border-bottom: none;
+}
+.prose-chat tr:hover td {
+  background-color: color-mix(in srgb, var(--mint) 30%, transparent);
+}

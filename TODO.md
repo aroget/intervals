@@ -1,0 +1,1 @@
+-ensure threshold pace and other metrics are following a standard metric so we can easily swap from metric to imperial
