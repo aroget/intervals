@@ -83,12 +83,23 @@ async function loadActivities(
     distanceM: r.distance_m,
     tss: r.tss,
     intensityFactor: r.intensity_factor,
+    atl: r.atl ?? null,
+    ctl: r.ctl ?? null,
     avgHr: r.avg_hr,
     maxHr: r.max_hr,
     avgPower: r.avg_power,
     normalizedPower: r.normalized_power,
+    joules: r.joules ?? null,
+    gap: r.gap ?? null,
+    decoupling: r.decoupling ?? null,
     elevationM: r.elevation_m,
     notes: r.notes,
+    rpe: r.rpe ?? null,
+    athleteComments: r.athlete_comments ?? null,
+    paceLoad: null,
+    hrLoad: null,
+    powerLoad: null,
+    efficiencyFactor: null,
   })) as Activity[];
 }
 
