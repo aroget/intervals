@@ -136,51 +136,14 @@ analysis.get("/:athleteId/upcoming", async (c) => {
 analysis.post("/:athleteId/generate-week", async (c) => {
   const athleteId = c.req.param("athleteId");
 
-  // Run in background so the response returns immediately
+  // Run in background so the response returns immediately.
+  // Uses replanWeekWorkouts which only writes to prescribed_workouts —
+  // never daily_analyses — so future-dated stale analyses cannot accumulate.
   (async () => {
-    // Load profile once — avoids repeated DB round-trips that exhaust connections
-    let cachedProfile;
     try {
-      cachedProfile = await loadAthleteProfile(athleteId);
+      await replanWeekWorkouts(athleteId, undefined, undefined, 7);
     } catch (err) {
-      console.error("[generate-week] Failed to load athlete profile:", err);
-      return;
-    }
-
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const date = d.toISOString().slice(0, 10);
-
-      // Build context from workouts already generated this loop
-      const start = new Date().toISOString().slice(0, 10);
-      const { data: planned } = await db
-        .from("prescribed_workouts")
-        .select("workout_date, sport, duration_min, intensity, agent_output")
-        .eq("athlete_id", athleteId)
-        .gte("workout_date", start)
-        .lt("workout_date", date)
-        .order("workout_date", { ascending: true });
-
-      const upcomingWorkouts = (planned ?? []).map((w: any) => ({
-        date: w.workout_date as string,
-        sport: w.sport as string,
-        durationMin: w.duration_min as number,
-        intensity: w.intensity as string,
-        periodizationPhase: (w.agent_output as { periodizationPhase?: string })
-          ?.periodizationPhase,
-      }));
-
-      try {
-        await runDailyAnalysis(
-          athleteId,
-          date,
-          upcomingWorkouts,
-          cachedProfile,
-        );
-      } catch (err) {
-        console.error(`[generate-week] ${date}:`, err);
-      }
+      console.error("[generate-week]", err);
     }
   })();
 

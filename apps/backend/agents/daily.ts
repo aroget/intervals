@@ -250,14 +250,19 @@ export async function runDailyAnalysis(
       `[daily] Recovery: ${recovery.readiness} (confidence: ${recovery.confidence})`,
     );
 
-    await db.from("daily_analyses").insert({
-      athlete_id: athleteId,
-      analysis_date: today,
-      readiness_score: metrics.readinessScore,
-      hrv_trend: metrics.hrvTrend,
-      agent_output: recovery,
-      model_used: MODEL,
-    });
+    // Never store a recovery analysis for a future date — it would be stale
+    // by the time that date arrives and would block real-day regeneration.
+    const actualToday = new Date().toISOString().slice(0, 10);
+    if (today <= actualToday) {
+      await db.from("daily_analyses").insert({
+        athlete_id: athleteId,
+        analysis_date: today,
+        readiness_score: metrics.readinessScore,
+        hrv_trend: metrics.hrvTrend,
+        agent_output: recovery,
+        model_used: MODEL,
+      });
+    }
   }
 
   // ── Yesterday's compliance ─────────────────────────────────────────────────
