@@ -1,8 +1,8 @@
 import { db } from "../../db/client.js";
+import { loadProfile, loadWellness, loadActivities } from "../../db/loaders.js";
 import { buildComputedMetrics } from "../../data/processors/readiness.js";
 import { runCoachAgent } from "../coach/agent.js";
 import type { AgentTool } from "../llm/types.js";
-import type { Activity, AthleteProfile, WellnessLog } from "../../types.js";
 
 /**
  * Regenerates the prescribed workout for a specific date using the coach agent,
@@ -34,127 +34,34 @@ export const regenerateWorkout: AgentTool<
   },
   async execute({ athleteId, date, notes }) {
     // Load profile, wellness, activities in parallel
-    const [profileResult, wellnessResult, activitiesResult, weekContextResult] =
-      await Promise.all([
-        db
-          .from("athlete_profiles")
-          .select("*")
-          .eq("athlete_id", athleteId)
-          .single(),
-        db
-          .from("wellness_logs")
-          .select("*")
-          .eq("athlete_id", athleteId)
-          .gte(
-            "log_date",
-            (() => {
-              const d = new Date(date);
-              d.setDate(d.getDate() - 60);
-              return d.toISOString().slice(0, 10);
-            })(),
-          )
-          .order("log_date", { ascending: true }),
-        db
-          .from("activities")
-          .select("*")
-          .eq("athlete_id", athleteId)
-          .gte(
-            "activity_date",
-            (() => {
-              const d = new Date(date);
-              d.setDate(d.getDate() - 90);
-              return d.toISOString().slice(0, 10);
-            })(),
-          )
-          .order("activity_date", { ascending: true }),
-        // Load the rest of the week for sport-rotation context (excluding the target date)
-        db
-          .from("prescribed_workouts")
-          .select("workout_date, sport, duration_min, intensity, agent_output")
-          .eq("athlete_id", athleteId)
-          .neq("workout_date", date)
-          .gte(
-            "workout_date",
-            (() => {
-              const d = new Date(date);
-              d.setDate(d.getDate() - 3);
-              return d.toISOString().slice(0, 10);
-            })(),
-          )
-          .lte(
-            "workout_date",
-            (() => {
-              const d = new Date(date);
-              d.setDate(d.getDate() + 3);
-              return d.toISOString().slice(0, 10);
-            })(),
-          )
-          .order("workout_date", { ascending: true }),
-      ]);
-
-    if (profileResult.error || !profileResult.data) {
-      throw new Error("Could not load athlete profile");
-    }
-
-    const raw = profileResult.data;
-    const profile: AthleteProfile = {
-      id: raw.id,
-      athleteId: raw.athlete_id,
-      name: raw.name,
-      goals: raw.goals,
-      trainingPhilosophy: raw.training_philosophy,
-      disciplines: raw.disciplines ?? [],
-      weeklyMaxHours: raw.weekly_max_hours ?? {},
-      preferredMetrics: raw.preferred_metrics ?? [],
-      cycleStartDate: raw.cycle_start_date,
-      ftp: raw.ftp ?? null,
-      runningThresholdPace: raw.running_threshold_pace ?? null,
-      lthr: raw.lthr ?? null,
-    };
-
-    const logs: WellnessLog[] = (wellnessResult.data ?? []).map((r: any) => ({
-      id: r.id,
-      athleteId: r.athlete_id,
-      logDate: r.log_date,
-      hrv: r.hrv,
-      hrvScore: r.hrv_score,
-      rhr: r.rhr,
-      sleepScore: r.sleep_score,
-      sleepHours: r.sleep_hours,
-      sleepQuality: r.sleep_quality,
-    }));
-
-    const activities: Activity[] = (activitiesResult.data ?? []).map(
-      (r: any) => ({
-        id: r.id,
-        athleteId: r.athlete_id,
-        intervalsId: r.intervals_id,
-        activityDate: r.activity_date,
-        sport: r.sport,
-        name: r.name,
-        durationSecs: r.duration_secs,
-        distanceM: r.distance_m,
-        tss: r.tss,
-        intensityFactor: r.intensity_factor,
-        atl: r.atl ?? null,
-        ctl: r.ctl ?? null,
-        avgHr: r.avg_hr,
-        maxHr: r.max_hr,
-        avgPower: r.avg_power,
-        normalizedPower: r.normalized_power,
-        joules: r.joules ?? null,
-        gap: r.gap ?? null,
-        decoupling: r.decoupling ?? null,
-        elevationM: r.elevation_m,
-        notes: r.notes,
-        rpe: r.rpe ?? null,
-        athleteComments: r.athlete_comments ?? null,
-        paceLoad: null,
-        hrLoad: null,
-        powerLoad: null,
-        efficiencyFactor: null,
-      }),
-    );
+    const [profile, logs, activities, weekContextResult] = await Promise.all([
+      loadProfile(athleteId),
+      loadWellness(athleteId, 60, date),
+      loadActivities(athleteId, 90, date),
+      // Load the rest of the week for sport-rotation context (excluding the target date)
+      db
+        .from("prescribed_workouts")
+        .select("workout_date, sport, duration_min, intensity, agent_output")
+        .eq("athlete_id", athleteId)
+        .neq("workout_date", date)
+        .gte(
+          "workout_date",
+          (() => {
+            const d = new Date(date);
+            d.setDate(d.getDate() - 3);
+            return d.toISOString().slice(0, 10);
+          })(),
+        )
+        .lte(
+          "workout_date",
+          (() => {
+            const d = new Date(date);
+            d.setDate(d.getDate() + 3);
+            return d.toISOString().slice(0, 10);
+          })(),
+        )
+        .order("workout_date", { ascending: true }),
+    ]);
 
     const upcomingWorkouts = (weekContextResult.data ?? []).map((w: any) => ({
       date: w.workout_date as string,

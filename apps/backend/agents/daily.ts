@@ -4,111 +4,18 @@
  */
 import "dotenv/config";
 import { db } from "../db/client.js";
+import { loadProfile, loadWellness, loadActivities } from "../db/loaders.js";
 import { buildComputedMetrics } from "../data/processors/readiness.js";
 import { buildComplianceReport } from "../data/processors/workoutCompliance.js";
 import { runRecoveryAgent } from "./recovery/agent.js";
 import { runCoachAgent } from "./coach/agent.js";
 import { embed } from "./llm/adapter.js";
-import type { Activity, AthleteProfile, WellnessLog } from "../types.js";
+import type { AthleteProfile } from "../types.js";
 import type { RecoveryOutput } from "./recovery/schema.js";
 import type { ComplianceReport } from "../data/processors/workoutCompliance.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gpt-4o-mini";
 const ATHLETE_ID = process.env.INTERVALS_ATHLETE_ID!;
-
-async function loadWellness(
-  athleteId: string,
-  daysBack: number,
-): Promise<WellnessLog[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - daysBack);
-  const { data } = await db
-    .from("wellness_logs")
-    .select("*")
-    .eq("athlete_id", athleteId)
-    .gte("log_date", since.toISOString().slice(0, 10))
-    .order("log_date", { ascending: true });
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    athleteId: r.athlete_id,
-    logDate: r.log_date,
-    hrv: r.hrv,
-    hrvScore: r.hrv_score,
-    rhr: r.rhr,
-    sleepScore: r.sleep_score,
-    sleepHours: r.sleep_hours,
-    sleepQuality: r.sleep_quality,
-  })) as WellnessLog[];
-}
-
-async function loadActivities(
-  athleteId: string,
-  daysBack: number,
-): Promise<Activity[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - daysBack);
-  const { data } = await db
-    .from("activities")
-    .select("*")
-    .eq("athlete_id", athleteId)
-    .gte("activity_date", since.toISOString().slice(0, 10))
-    .order("activity_date", { ascending: true });
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    athleteId: r.athlete_id,
-    intervalsId: r.intervals_id,
-    activityDate: r.activity_date,
-    sport: r.sport,
-    name: r.name,
-    durationSecs: r.duration_secs,
-    distanceM: r.distance_m,
-    tss: r.tss,
-    intensityFactor: r.intensity_factor,
-    atl: r.atl ?? null,
-    ctl: r.ctl ?? null,
-    avgHr: r.avg_hr,
-    maxHr: r.max_hr,
-    avgPower: r.avg_power,
-    normalizedPower: r.normalized_power,
-    joules: r.joules ?? null,
-    gap: r.gap ?? null,
-    decoupling: r.decoupling ?? null,
-    elevationM: r.elevation_m,
-    notes: r.notes,
-    rpe: r.rpe ?? null,
-    athleteComments: r.athlete_comments ?? null,
-    paceLoad: null,
-    hrLoad: null,
-    powerLoad: null,
-    efficiencyFactor: null,
-  })) as Activity[];
-}
-
-async function loadProfile(athleteId: string): Promise<AthleteProfile> {
-  const { data, error } = await db
-    .from("athlete_profiles")
-    .select("*")
-    .eq("athlete_id", athleteId)
-    .single();
-  if (error || !data)
-    throw new Error(
-      `No athlete profile found for ${athleteId}: ${error?.message ?? "no data"} (code: ${error?.code})`,
-    );
-  return {
-    id: data.id,
-    athleteId: data.athlete_id,
-    name: data.name,
-    goals: data.goals,
-    trainingPhilosophy: data.training_philosophy,
-    disciplines: data.disciplines ?? [],
-    weeklyMaxHours: data.weekly_max_hours ?? {},
-    preferredMetrics: data.preferred_metrics ?? [],
-    cycleStartDate: data.cycle_start_date,
-    ftp: data.ftp ?? null,
-    runningThresholdPace: data.running_threshold_pace ?? null,
-    lthr: data.lthr ?? null,
-  };
-}
 
 async function storeMemory(
   athleteId: string,
@@ -164,14 +71,14 @@ export async function runDailyAnalysis(
         .single(),
     ]);
 
-  if (!force && existingAnalysis && existingWorkout) {
+  if (!force && existingAnalysis) {
     console.log(
       "[daily] Analysis and workout already exist for today, skipping",
     );
     return;
   }
 
-  if (force && (existingAnalysis || existingWorkout)) {
+  if (force) {
     console.log(
       "[daily] Force flag set — deleting today's records for fresh analysis",
     );
@@ -250,19 +157,14 @@ export async function runDailyAnalysis(
       `[daily] Recovery: ${recovery.readiness} (confidence: ${recovery.confidence})`,
     );
 
-    // Never store a recovery analysis for a future date — it would be stale
-    // by the time that date arrives and would block real-day regeneration.
-    const actualToday = new Date().toISOString().slice(0, 10);
-    if (today <= actualToday) {
-      await db.from("daily_analyses").insert({
-        athlete_id: athleteId,
-        analysis_date: today,
-        readiness_score: metrics.readinessScore,
-        hrv_trend: metrics.hrvTrend,
-        agent_output: recovery,
-        model_used: MODEL,
-      });
-    }
+    await db.from("daily_analyses").insert({
+      athlete_id: athleteId,
+      analysis_date: today,
+      readiness_score: metrics.readinessScore,
+      hrv_trend: metrics.hrvTrend,
+      agent_output: recovery,
+      model_used: MODEL,
+    });
   }
 
   // ── Yesterday's compliance ─────────────────────────────────────────────────
@@ -333,17 +235,21 @@ export async function runDailyAnalysis(
     `[daily] Workout: ${workout.durationMin}min ${workout.sport} (${workout.intensity})`,
   );
 
-  await db.from("prescribed_workouts").insert({
-    athlete_id: athleteId,
-    workout_date: today,
-    sport: workout.sport,
-    duration_min: workout.durationMin,
-    intensity: workout.intensity,
-    structure: workout.workoutStructure,
-    rationale: workout.rationale,
-    agent_output: workout,
-    model_used: MODEL,
-  });
+  if (!existingWorkout || force) {
+    await db.from("prescribed_workouts").insert({
+      athlete_id: athleteId,
+      workout_date: today,
+      sport: workout.sport,
+      duration_min: workout.durationMin,
+      intensity: workout.intensity,
+      structure: workout.workoutStructure,
+      rationale: workout.rationale,
+      agent_output: workout,
+      model_used: MODEL,
+    });
+  } else {
+    console.log("[daily] Keeping existing prescribed workout for today");
+  }
 
   // ── Store in semantic memory ───────────────────────────────────────────────
   const memorySummary = `${today}: ${recovery.summary} Workout prescribed: ${workout.durationMin}min ${workout.sport} (${workout.intensity}). ${workout.rationale}`;
