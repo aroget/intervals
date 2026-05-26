@@ -149,6 +149,7 @@ export interface IntervalsActivity {
   moving_time: number;
   distance: number;
   total_elevation_gain: number;
+  average_temp: number | null;
   average_heartrate: number | null;
   max_heartrate: number | null;
   average_watts: number | null;
@@ -187,7 +188,7 @@ export async function fetchActivities(
 ): Promise<IntervalsActivity[]> {
   const { athleteId } = getCredentials();
   return request<IntervalsActivity[]>(
-    `/athlete/${athleteId}/activities?oldest=${oldest}&newest=${newest}&cols=id,start_date_local,name,type,moving_time,distance,total_elevation_gain,average_heartrate,max_heartrate,average_watts,normalized_power,icu_training_load,icu_intensity,icu_atl,icu_ctl,icu_joules,icu_average_watts,gap,decoupling,icu_rpe,pace_load,hr_load,power_load,icu_efficiency_factor`,
+    `/athlete/${athleteId}/activities?oldest=${oldest}&newest=${newest}&cols=id,start_date_local,name,type,moving_time,distance,total_elevation_gain,average_heartrate,max_heartrate,average_watts,normalized_power,icu_training_load,icu_intensity,icu_atl,icu_ctl,icu_joules,icu_average_watts,gap,decoupling,icu_rpe,pace_load,hr_load,power_load,icu_efficiency_factor,average_temp`,
   );
 }
 

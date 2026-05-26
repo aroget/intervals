@@ -10,6 +10,10 @@ import {
   fetchAthlete,
   extractThresholds,
 } from "../intervals/client.js";
+import {
+  toActivityRow,
+  toWellnessRow,
+} from "../intervals/mapper.js";
 
 function toIso(daysAgo: number): string {
   const d = new Date();
@@ -26,19 +30,7 @@ export async function syncWellness(daysBack = 60): Promise<void> {
 
   const entries = await fetchWellness(oldest, newest);
 
-  const rows = entries.map((e) => ({
-    athlete_id: ATHLETE_ID,
-    log_date: e.id,
-    hrv: e.hrv,
-    hrv_score: e.hrvScore,
-    rhr: e.restingHR,
-    sleep_score: e.sleepScore,
-    sleep_hours: e.sleepTime
-      ? Math.round((e.sleepTime / 3600) * 10) / 10
-      : null,
-    raw_source: "intervals.icu",
-    raw_data: e,
-  }));
+  const rows = entries.map((e) => toWellnessRow(e, ATHLETE_ID));
 
   if (!rows.length) return;
 
@@ -51,26 +43,6 @@ export async function syncWellness(daysBack = 60): Promise<void> {
   console.log(`[sync] upserted ${rows.length} wellness entries`);
 }
 
-const SPORT_NORMALIZE: Record<string, string> = {
-  ride: "bike",
-  virtualride: "bike",
-  ebikeride: "bike",
-  run: "run",
-  virtualrun: "run",
-  trailrun: "run",
-  swim: "swim",
-  openwatersim: "swim",
-  weighttraining: "strength",
-  workout: "strength",
-  yoga: "strength",
-  walk: "run",
-};
-
-function normalizeSport(type: string | null | undefined): string {
-  if (!type) return "other";
-  return SPORT_NORMALIZE[type.toLowerCase()] ?? type.toLowerCase();
-}
-
 export async function syncActivities(daysBack = 1): Promise<void> {
   const oldest = toIso(daysBack);
   const newest = toIso(0);
@@ -78,32 +50,7 @@ export async function syncActivities(daysBack = 1): Promise<void> {
 
   const entries = await fetchActivities(oldest, newest);
 
-  const rows = entries.map((a) => ({
-    athlete_id: ATHLETE_ID,
-    intervals_id: a.id,
-    activity_date: a.start_date_local.slice(0, 10),
-    sport: normalizeSport(a.type),
-    name: a.name,
-    duration_secs: a.moving_time,
-    distance_m: a.distance,
-    tss: a.icu_training_load,
-    intensity_factor: a.icu_intensity,
-    atl: a.icu_atl,
-    ctl: a.icu_ctl,
-    joules: a.icu_joules,
-    avg_hr: a.average_heartrate,
-    max_hr: a.max_heartrate,
-    avg_power: a.icu_average_watts ?? a.average_watts,
-    gap: a.gap,
-    decoupling: a.decoupling,
-    elevation_m: a.total_elevation_gain,
-    rpe: a.icu_rpe,
-    raw_data: a,
-    pace_load: a.pace_load,
-    hr_load: a.hr_load,
-    power_load: a.power_load,
-    efficiency_factor: a.icu_efficiency_factor,
-  }));
+  const rows = entries.map((a) => toActivityRow(a, ATHLETE_ID));
 
   if (!rows.length) return;
 

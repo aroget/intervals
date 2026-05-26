@@ -47,6 +47,8 @@ export interface Activity {
   decoupling: number | null; // aerobic decoupling (%)
   elevationM: number | null;
   notes: string | null;
+  average_temp: number | null;
+  athleteComments: string | null; // athlete's post-session notes
   rpe: number | null; // 1–10 athlete-reported RPE (Intervals.icu "feel")
   paceLoad: number | null; // custom metric: pace * duration
   hrLoad: number | null; // custom metric: avg_hr * duration

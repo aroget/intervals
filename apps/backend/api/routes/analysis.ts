@@ -161,7 +161,7 @@ analysis.get("/:athleteId/recent-activities", async (c) => {
   const { data, error } = await db
     .from("activities")
     .select(
-      "id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, atl, ctl, joules, avg_hr, max_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments",
+      "id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, atl, ctl, joules, avg_hr, max_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments, average_temp",
     )
     .eq("athlete_id", athleteId)
     .order("activity_date", { ascending: false })
@@ -178,7 +178,7 @@ analysis.get("/:athleteId/activity-analysis/:activityId", async (c) => {
   const { data: activity, error } = await db
     .from("activities")
     .select(
-      "id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, avg_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments, post_workout_analysis",
+      "id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, avg_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments, post_workout_analysis, average_temp",
     )
     .eq("id", activityId)
     .single();
@@ -207,6 +207,7 @@ TSS: ${activity.tss ?? "—"} | IF: ${activity.intensity_factor ?? "—"}
 Avg HR: ${activity.avg_hr ?? "—"} bpm | Avg Power: ${activity.avg_power ?? "—"} W | NP: ${activity.normalized_power ?? "—"} W
 Efficiency Factor: ${activity.efficiency_factor ?? "—"}
 Elevation: ${activity.elevation_m != null ? `${activity.elevation_m} m` : "—"}
+Average Temp: ${activity.average_temp != null ? `${activity.average_temp}°C` : "—"}
 RPE: ${activity.rpe != null ? `${activity.rpe}/10` : "—"}
 Pace Load: ${activity.pace_load ?? "—"} | HR Load: ${activity.hr_load ?? "—"} | Power Load: ${activity.power_load ?? "—"} 
 Athlete notes: ${activity.athlete_comments ?? "none"}
