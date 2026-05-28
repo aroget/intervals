@@ -1,9 +1,6 @@
 import { db } from "./client.js";
 import type { Activity, AthleteProfile, WellnessLog } from "../types.js";
-import {
-  fromActivityRow,
-  fromWellnessRow,
-} from "../data/intervals/mapper.js";
+import { fromActivityRow, fromWellnessRow } from "../data/intervals/mapper.js";
 
 export async function loadProfile(athleteId: string): Promise<AthleteProfile> {
   const { data, error } = await db

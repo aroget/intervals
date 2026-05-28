@@ -6,6 +6,7 @@ import {
   replanWeekWorkouts,
 } from "../../agents/daily.js";
 import { chat } from "../../agents/llm/adapter.js";
+import { getCyclePosition } from "../../data/processors/cycleTracker.js";
 
 const analysis = new Hono();
 /** GET /analysis/:athleteId/today — get today's analysis and workout */
@@ -173,12 +174,12 @@ analysis.get("/:athleteId/recent-activities", async (c) => {
 
 /** GET /analysis/:athleteId/activity-analysis/:activityId — cached AI post-workout analysis */
 analysis.get("/:athleteId/activity-analysis/:activityId", async (c) => {
-  const { activityId } = c.req.param();
+  const { activityId, athleteId } = c.req.param();
 
   const { data: activity, error } = await db
     .from("activities")
     .select(
-      "id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, avg_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments, post_workout_analysis, average_temp",
+      "id, athlete_id, activity_date, sport, pace_load, hr_load, power_load, efficiency_factor, name, duration_secs, distance_m, tss, intensity_factor, avg_hr, avg_power, normalized_power, elevation_m, rpe, athlete_comments, post_workout_analysis, average_temp",
     )
     .eq("id", activityId)
     .single();
@@ -190,6 +191,44 @@ analysis.get("/:athleteId/activity-analysis/:activityId", async (c) => {
     return c.json({ analysis: activity.post_workout_analysis });
   }
 
+  // Fetch training context: athlete profile (for cycle position) and prescribed workout
+  const [{ data: profile }, { data: prescribed }] = await Promise.all([
+    db
+      .from("athlete_profiles")
+      .select("cycle_start_date")
+      .eq("athlete_id", activity.athlete_id)
+      .single(),
+    db
+      .from("prescribed_workouts")
+      .select("sport, duration_min, intensity, rationale, structure")
+      .eq("athlete_id", activity.athlete_id)
+      .eq("workout_date", activity.activity_date)
+      .single(),
+  ]);
+
+  // Build training phase context
+  let cycleContext = "";
+  if (profile?.cycle_start_date) {
+    const cycle = getCyclePosition(
+      profile.cycle_start_date as string,
+      activity.activity_date as string,
+    );
+    cycleContext = `\nTraining Phase: Week ${cycle.weekNumber} (${cycle.weekType}) of 4-week cycle`;
+  }
+
+  // Build prescribed workout context
+  let prescribedContext = "";
+  if (prescribed) {
+    const structureDesc = prescribed.structure
+      ? `\n  - Structure: ${JSON.stringify(prescribed.structure).slice(0, 100)}...`
+      : "";
+    prescribedContext = `\nPrescribed Workout:
+  - Sport: ${prescribed.sport ?? "any"}
+  - Target Duration: ${prescribed.duration_min ?? "flexible"} min
+  - Intensity: ${prescribed.intensity ?? "moderate"}
+  - Rationale: ${prescribed.rationale ?? "—"}${structureDesc}`;
+  }
+
   // Generate analysis
   const durMin = activity.duration_secs
     ? Math.round((activity.duration_secs as number) / 60)
@@ -198,9 +237,9 @@ analysis.get("/:athleteId/activity-analysis/:activityId", async (c) => {
     ? ((activity.distance_m as number) / 1000).toFixed(1)
     : null;
 
-  const prompt = `You are a sports coach. Write a concise 2-3 sentence post-workout analysis for this session. Focus on effort quality, any notable data patterns (high efficiency factor = aerobic drift, RPE vs objective load), and one key takeaway.
+  const prompt = `You are a sports coach analyzing a completed workout.${cycleContext}${prescribedContext}
 
-Activity: ${activity.sport} — ${activity.name ?? "untitled"}
+Completed Activity: ${activity.sport} — ${activity.name ?? "untitled"}
 Date: ${activity.activity_date}
 Duration: ${durMin != null ? `${durMin} min` : "—"}${distKm ? ` | Distance: ${distKm} km` : ""}
 TSS: ${activity.tss ?? "—"} | IF: ${activity.intensity_factor ?? "—"}
@@ -211,6 +250,11 @@ Average Temp: ${activity.average_temp != null ? `${activity.average_temp}°C` : 
 RPE: ${activity.rpe != null ? `${activity.rpe}/10` : "—"}
 Pace Load: ${activity.pace_load ?? "—"} | HR Load: ${activity.hr_load ?? "—"} | Power Load: ${activity.power_load ?? "—"} 
 Athlete notes: ${activity.athlete_comments ?? "none"}
+
+Write a 2-3 sentence analysis covering:
+1. How well this aligns with the prescribed plan (if any) and training phase
+2. Effort quality and data patterns (efficiency factor, RPE vs objective load, etc.)
+3. One key takeaway or adjustment
 
 Write only the analysis text, no headers or labels.`;
 
