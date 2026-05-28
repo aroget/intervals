@@ -111,8 +111,15 @@ ${userRequest.durationMin ? `  Duration: exactly ${userRequest.durationMin} minu
 ${userRequest.notes ? `  Notes: ${userRequest.notes}` : ""}
 `
     : ""
-}${weekPlanSection}${complianceSection}
-RECOVERY ANALYSIS (from Recovery Agent):
+}${weekPlanSection}${complianceSection}${
+    metrics.blockEffectiveness != null
+      ? `
+BLOCK EFFECTIVENESS: ${metrics.blockEffectiveness}/100
+Current 4-week training block is ${metrics.blockEffectiveness >= 75 ? "highly effective" : metrics.blockEffectiveness >= 50 ? "moderately effective" : "underperforming"}. This score reflects CTL gains vs expected, compliance rate, and overtraining risk. ${metrics.blockEffectiveness < 50 ? "Consider adjusting volume or intensity if pattern continues." : ""}
+
+`
+      : ""
+  }RECOVERY ANALYSIS (from Recovery Agent):
   Readiness level: ${recovery.readiness}
   Summary: ${recovery.summary}
   Recommendation: ${recovery.recommendation}
@@ -130,7 +137,7 @@ Return a JSON object with this exact shape:
   "sport": "run" | "bike" | "swim" | "strength",
   "durationMin": <number, max ${maxMinutes}>,
   "intensity": "easy" | "moderate" | "hard" | "rest",
-  "workoutStructure": "<Intervals.icu text, e.g.:\\n-15m 6:00-6:30 Pace\\n\\n4x\\n-8m 4:50-5:10 Pace\\n-2m 6:30-7:30 Pace\\n\\n-10m 6:00-6:30 Pace>",
+  "workoutStructure": "<see STRICT FORMAT RULES below>",
   "rationale": "...",
   "adjustmentsFromPlan": [...],
   "periodizationPhase": "...",
@@ -142,6 +149,60 @@ Return a JSON object with this exact shape:
     { "label": "Cool Down", "durationMin": 10, "intensityPct": 55 }
   ]
 }
+
+workoutStructure STRICT FORMAT RULES:
+1. Time format: Use "m" suffix (e.g., "15m", "8m") — NEVER "min" or "minutes"
+2. Line format: "- [Time] [Intensity]" (note the dash and space)
+3. Intervals: "[N]x" on its own line, then indented "- [Time] [Intensity]" lines below
+4. DO NOT use descriptive text like "warm-up", "steady", "easy run", "cool-down"
+5. DO NOT use pace units like "/km" or "/mi" — just the intensity value
+6. Intensity formats:
+   - Run easy/recovery: "60-70% LTHR" (heart rate percentage)
+   - Run hard intervals: "95-100% Pace" (pace percentage, calculated from threshold)
+   - Bike easy/recovery: "65-75% HR" (heart rate percentage)
+   - Bike hard intervals: "105-110% FTP" or "200-220W" (power)
+7. NEVER mix intensity types in one workout (all Pace OR all HR, never both)
+
+CORRECT workoutStructure Examples:
+
+Example 1: Easy/Recovery Run (HR only):
+- 10m 60-70% LTHR
+- 40m 65-75% LTHR
+- 10m 60-70% LTHR
+
+Example 2: Hard/Interval Run (Pace only):
+- 15m 75-80% Pace
+
+4x
+- 8m 95-100% Pace
+- 2m 70-75% Pace
+
+- 10m 75-80% Pace
+
+Example 3: Single Set Hard Run (Pace only):
+- 10m 80% Pace
+- 30m 95% Pace
+- 10m 75% Pace
+
+Example 4: Easy/Recovery Bike (HR only):
+- 15m 55-65% HR
+- 60m 65-75% HR
+- 15m 55-65% HR
+
+Example 5: Hard/Interval Bike (FTP only):
+- 20m 65-75% FTP
+
+5x
+- 5m 105-110% FTP
+- 3m 55% FTP
+
+- 15m 60-70% FTP
+
+INCORRECT Examples (NEVER output these):
+❌ "- 15 min warm-up at 6:30-6:55/km pace"
+❌ "- 25 min steady easy run at 6:30-6:45/km pace"
+❌ "- 5 min cool-down at 6:55-7:15/km pace"
+(Problems: uses "min", "/km", and descriptive phrases)
 
 phases rules:
 - Include every phase: warm-up, each interval, each recovery, cool-down.

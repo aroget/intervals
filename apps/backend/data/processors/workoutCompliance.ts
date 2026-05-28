@@ -3,6 +3,10 @@
  * All logic is deterministic — no LLM involvement.
  */
 
+import type { Activity } from "../../types.js";
+import { estimateTss } from "./workoutAdapter.js";
+import { normalizeSport } from "../intervals/mapper.js";
+
 export interface PrescribedSummary {
   date: string;
   sport: string | null;
@@ -67,7 +71,7 @@ export function buildComplianceReport(
 
   const sportMatch =
     prescribed.sport != null && actual.sport != null
-      ? normalise(actual.sport) === normalise(prescribed.sport)
+      ? normalizeSport(actual.sport) === normalizeSport(prescribed.sport)
       : null;
 
   const parts: string[] = [];
@@ -119,15 +123,7 @@ export function buildComplianceReport(
   };
 }
 
-function normalise(sport: string): string {
-  const s = sport.toLowerCase();
-  if (s.includes("run")) return "run";
-  if (s.includes("ride") || s.includes("bike") || s.includes("cycl"))
-    return "bike";
-  if (s.includes("swim")) return "swim";
-  if (s.includes("weight") || s.includes("strength")) return "strength";
-  return s;
-}
+// Sport normalization now uses centralized function from mapper.ts
 
 function rpeVsIntensity(rpe: number, intensity: string): string {
   // Flag mismatches between prescribed intensity and felt RPE

@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS activities (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+
 -- ────────────────────────────────────────────────────────────────
 -- Training cycles (4-week blocks)
 -- ────────────────────────────────────────────────────────────────
@@ -102,11 +103,15 @@ CREATE TABLE IF NOT EXISTS daily_analyses (
   analysis_date   DATE NOT NULL,
   readiness_score NUMERIC NOT NULL,      -- computed 0–100 (deterministic)
   hrv_trend       TEXT,                  -- rising | stable | declining
+  block_effectiveness NUMERIC,           -- 0–100 score for current 4-week block
   agent_output    JSONB NOT NULL,        -- full Recovery Agent structured output
   model_used      TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(athlete_id, analysis_date)
 );
+
+-- Migration (run if table already exists):
+-- ALTER TABLE daily_analyses ADD COLUMN IF NOT EXISTS block_effectiveness NUMERIC;
 
 -- ────────────────────────────────────────────────────────────────
 -- Prescribed workouts (Coach Agent output)

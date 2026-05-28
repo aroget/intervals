@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
+import BlockOverview from "@/components/BlockOverview";
+import ComplianceMetrics from "@/components/ComplianceMetrics";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
 const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
@@ -690,28 +692,28 @@ export default function DashboardPage() {
           {wellnessLoading ? (
             <CardSkeleton rows={1} />
           ) : today ? (
-            <div className="rounded-2xl border border-border bg-bg-card px-6 py-5 shadow-sm">
+            <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
                   {t("health.title")}
                 </h2>
                 <span className="text-xs text-muted">{today.log_date}</span>
               </div>
-              <div className="flex justify-around gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {/* HRV */}
                 <div className="space-y-1 text-center">
                   <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
                     {today.hrv_score != null ? "HRV Score" : t("health.hrv")}
                   </p>
                   <div className="flex items-center justify-center gap-1">
-                    <span className="text-3xl font-bold text-teal tabular-nums">
+                    <span className="text-2xl sm:text-3xl font-bold text-teal tabular-nums">
                       {today.hrv_score != null
                         ? today.hrv_score
                         : today.hrv != null
                           ? today.hrv.toFixed(0)
                           : "–"}
                     </span>
-                    <span className="text-sm font-semibold text-teal">
+                    <span className="text-xs sm:text-sm font-semibold text-teal">
                       {today.hrv_score != null ? "/100" : "ms"}
                     </span>
                     <span
@@ -737,10 +739,12 @@ export default function DashboardPage() {
                     {t("health.rhr")}
                   </p>
                   <div className="flex items-center justify-center gap-1">
-                    <span className="text-3xl font-bold text-teal tabular-nums">
+                    <span className="text-2xl sm:text-3xl font-bold text-teal tabular-nums">
                       {today.rhr ?? "–"}
                     </span>
-                    <span className="text-sm font-semibold text-teal">bpm</span>
+                    <span className="text-xs sm:text-sm font-semibold text-teal">
+                      bpm
+                    </span>
                     <span
                       className={`text-sm font-semibold ${trendColor(trend(today.rhr, weekAvg("rhr")))}`}
                     >
@@ -757,12 +761,12 @@ export default function DashboardPage() {
                       : "Sleep Score"}
                   </p>
                   <div className="flex items-center justify-center gap-1">
-                    <span className="text-3xl font-bold text-teal tabular-nums">
+                    <span className="text-2xl sm:text-3xl font-bold text-teal tabular-nums">
                       {today.sleep_hours != null
                         ? today.sleep_hours.toFixed(1)
                         : (today.sleep_score ?? "–")}
                     </span>
-                    <span className="text-sm font-semibold text-teal">
+                    <span className="text-xs sm:text-sm font-semibold text-teal">
                       {today.sleep_hours != null ? "h" : "/100"}
                     </span>
                     <span
@@ -795,10 +799,10 @@ export default function DashboardPage() {
                       Sleep Score
                     </p>
                     <div className="flex items-center justify-center gap-1">
-                      <span className="text-3xl font-bold text-teal tabular-nums">
+                      <span className="text-2xl sm:text-3xl font-bold text-teal tabular-nums">
                         {today.sleep_score ?? "–"}
                       </span>
-                      <span className="text-sm font-semibold text-teal">
+                      <span className="text-xs sm:text-sm font-semibold text-teal">
                         /100
                       </span>
                       <span
@@ -824,10 +828,10 @@ export default function DashboardPage() {
                       Readiness
                     </p>
                     <div className="flex items-center justify-center gap-1">
-                      <span className="text-3xl font-bold tabular-nums text-teal">
+                      <span className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
                         {analysis.readiness_score}
                       </span>
-                      <span className="text-sm font-semibold text-teal">
+                      <span className="text-xs sm:text-sm font-semibold text-teal">
                         /100
                       </span>
                     </div>
@@ -837,133 +841,10 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          {/* Recovery Card */}
-          {!isLoading &&
-            analysis &&
-            (() => {
-              // derive yesterday's activity from recent activities
-              const yesterdayDate = new Date();
-              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-              const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
-              const yesterdayAct =
-                activitiesData?.activities?.find(
-                  (a) => a.activity_date === yesterdayStr,
-                ) ?? null;
-              // most recent activity for ATL/CTL
-              const latestAct = activitiesData?.activities?.[0] ?? null;
-              const tsb =
-                latestAct?.ctl != null && latestAct?.atl != null
-                  ? Math.round(latestAct.ctl - latestAct.atl)
-                  : null;
-
-              return (
-                <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-                      {t("recovery.title")}
-                    </h2>
-                    <span className="text-xs font-medium text-muted">
-                      {analysis.analysis_date}
-                    </span>
-                  </div>
-
-                  {/* Yesterday's session */}
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-                      Yesterday
-                    </p>
-                    {yesterdayAct ? (
-                      <p className="text-sm font-semibold text-text capitalize">
-                        {yesterdayAct.sport}
-                        <span className="text-muted font-normal">
-                          {" "}
-                          · {Math.round(
-                            (yesterdayAct.duration_secs ?? 0) / 60,
-                          )}{" "}
-                          min
-                          {yesterdayAct.tss != null &&
-                            ` · TSS ${Math.round(yesterdayAct.tss)}`}
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted">
-                        Rest day — no activity recorded
-                      </p>
-                    )}
-                    {analysis.agent_output?.yesterdayImpact ? (
-                      <p className="text-sm text-text leading-relaxed">
-                        {analysis.agent_output.yesterdayImpact}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-text leading-relaxed">
-                        {analysis.agent_output?.summary}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Training implication */}
-                  {(analysis.agent_output?.trainingImplication ||
-                    analysis.agent_output?.recommendation) && (
-                    <div className="space-y-1.5 pt-3 border-t border-border">
-                      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-                        Today's prescription context
-                      </p>
-                      <p className="text-sm text-text leading-relaxed">
-                        {analysis.agent_output.trainingImplication ??
-                          analysis.agent_output.recommendation}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* ATL / CTL / TSB */}
-                  {latestAct &&
-                    (latestAct.atl != null || latestAct.ctl != null) && (
-                      <div className="flex items-center gap-2 pt-3 border-t border-border flex-wrap">
-                        {latestAct.atl != null && (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange/10 text-orange border border-orange/20">
-                            ATL&nbsp;{Math.round(latestAct.atl)}
-                          </span>
-                        )}
-                        {latestAct.ctl != null && (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal/10 text-teal border border-teal/20">
-                            CTL&nbsp;{Math.round(latestAct.ctl)}
-                          </span>
-                        )}
-                        {tsb !== null && (
-                          <span
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                              tsb >= 0
-                                ? "bg-teal/10 text-teal border-teal/20"
-                                : "bg-orange/10 text-orange border-orange/20"
-                            }`}
-                          >
-                            TSB&nbsp;{tsb > 0 ? `+${tsb}` : tsb}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                  {/* Flags */}
-                  {analysis.agent_output?.flags?.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {analysis.agent_output.flags.map((flag, i) => (
-                        <span
-                          key={i}
-                          className="text-xs bg-peach/20 border border-peach text-orange rounded-full px-3 py-1 font-medium"
-                        >
-                          {flag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
           {/* Workout Card */}
           {!isLoading && (
             <div
-              className={`rounded-2xl border bg-bg-card p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
+              className={`rounded-2xl border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
@@ -977,16 +858,16 @@ export default function DashboardPage() {
               </div>
               {workout ? (
                 <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-baseline gap-3">
-                      <span className="text-3xl font-bold text-teal capitalize">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-2 sm:gap-3">
+                      <span className="text-2xl sm:text-3xl font-bold text-teal capitalize">
                         {workout.sport}
                       </span>
-                      <span className="text-orange font-semibold">
+                      <span className="text-orange font-semibold text-sm sm:text-base">
                         {workout.duration_min} min
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <WorkoutBadge
                         energySystem={workout.agent_output?.energySystem}
                         intensity={workout.intensity}
@@ -997,6 +878,59 @@ export default function DashboardPage() {
                   <p className="text-text text-sm leading-relaxed">
                     {workout.rationale}
                   </p>
+
+                  {/* Today's prescription context */}
+                  {analysis &&
+                    (analysis.agent_output?.trainingImplication ||
+                      analysis.agent_output?.recommendation) && (
+                      <div className="space-y-1.5 pt-3 border-t border-border">
+                        <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                          Today's prescription context
+                        </p>
+                        <p className="text-sm text-text leading-relaxed">
+                          {analysis.agent_output.trainingImplication ??
+                            analysis.agent_output.recommendation}
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Training load badges */}
+                  {(() => {
+                    const latestAct = activitiesData?.activities?.[0] ?? null;
+                    const tsb =
+                      latestAct?.ctl != null && latestAct?.atl != null
+                        ? Math.round(latestAct.ctl - latestAct.atl)
+                        : null;
+                    return (
+                      latestAct &&
+                      (latestAct.atl != null || latestAct.ctl != null) && (
+                        <div className="flex items-center gap-2 pt-3 border-t border-border flex-wrap">
+                          {latestAct.atl != null && (
+                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange/10 text-orange border border-orange/20">
+                              ATL&nbsp;{Math.round(latestAct.atl)}
+                            </span>
+                          )}
+                          {latestAct.ctl != null && (
+                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal/10 text-teal border border-teal/20">
+                              CTL&nbsp;{Math.round(latestAct.ctl)}
+                            </span>
+                          )}
+                          {tsb !== null && (
+                            <span
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                                tsb >= 0
+                                  ? "bg-teal/10 text-teal border-teal/20"
+                                  : "bg-orange/10 text-orange border-orange/20"
+                              }`}
+                            >
+                              TSB&nbsp;{tsb > 0 ? `+${tsb}` : tsb}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    );
+                  })()}
+
                   {workout.agent_output?.phases &&
                   workout.agent_output.phases.length > 0 ? (
                     <div className="pt-3 border-t border-border space-y-3">
@@ -1061,40 +995,10 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Recent Workouts Card */}
-          <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
-            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-              {t("recent.title")}
-            </h2>
-            {activitiesLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-14 rounded-xl bg-border/40 animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : activitiesData?.activities &&
-              activitiesData.activities.length > 0 ? (
-              <div className="space-y-2">
-                {activitiesData.activities.map((a) => (
-                  <ActivityRow
-                    key={a.id}
-                    activity={a}
-                    onClick={() => setSelectedActivity(a)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted">{t("recent.noData")}</p>
-            )}
-          </div>
-
           {/* Sport Progress Card */}
           {progressData?.sportProgress &&
             progressData.sportProgress.length > 0 && (
-              <div className="rounded-2xl border border-border bg-bg-card p-6 space-y-4 shadow-sm">
+              <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm">
                 <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
                   {t("progress.title")}
                 </h2>
@@ -1117,6 +1021,25 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+
+          {/* Training Block Overview */}
+          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
+              Week Training Block
+            </h2>
+            <BlockOverview
+              athleteId={ATHLETE_ID}
+              onActivityClick={(activity) => setSelectedActivity(activity)}
+            />
+          </div>
+
+          {/* Compliance & Progress Metrics */}
+          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
+              Performance & Compliance
+            </h2>
+            <ComplianceMetrics athleteId={ATHLETE_ID} />
+          </div>
         </div>
       </div>
     </>

@@ -31,8 +31,10 @@ The week plan and recent activities are already injected above. Use tools only w
 - getAthleteProfile       → goals, philosophy, weekly time limits
 - searchMemory            → semantic search over ALL past data, notes, and summaries
 
-CROSS-SESSION CONTEXT (from previous sessions):
+CROSS-SESSION CONTEXT:
 ${crossSessionContext || "No previous session data available yet."}
+
+NOTE: Block Effectiveness score (0-100) shows how well the current 4-week training block is translating to fitness gains. Use this when discussing training progress, adaptations, or block-level trends.
 
 CONVERSATION STYLE:
 - Warm, direct, and knowledgeable — like a coach who truly knows you

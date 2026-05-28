@@ -7,6 +7,19 @@ import { db } from "../db/client.js";
 import { loadProfile, loadWellness, loadActivities } from "../db/loaders.js";
 import { buildComputedMetrics } from "../data/processors/readiness.js";
 import { buildComplianceReport } from "../data/processors/workoutCompliance.js";
+import {
+  getTrainingCapacity,
+  suggestAdaptation,
+} from "../data/processors/workoutAdapter.js";
+import {
+  getExpectedReadiness,
+  checkReadinessDeviation,
+} from "../data/processors/deviationChecker.js";
+import {
+  analyzeFitnessTrajectory,
+  calculateBlockEffectiveness,
+} from "../data/processors/fitnessTrajectory.js";
+import { calculateBlockCompliance } from "../data/processors/weeklyCompliance.js";
 import { runRecoveryAgent } from "./recovery/agent.js";
 import { runCoachAgent } from "./coach/agent.js";
 import { embed } from "./llm/adapter.js";
@@ -65,7 +78,7 @@ export async function runDailyAnalysis(
         .single(),
       db
         .from("prescribed_workouts")
-        .select("id")
+        .select("*")
         .eq("athlete_id", athleteId)
         .eq("workout_date", today)
         .single(),
@@ -119,6 +132,94 @@ export async function runDailyAnalysis(
     today,
   });
 
+  // ── Calculate block effectiveness ─────────────────────────────────────────
+  let blockEffectiveness: number | null = null;
+  try {
+    // Get current block boundaries
+    const cycleStart = new Date(profile.cycleStartDate);
+    const todayDate = new Date(today);
+    const daysSinceStart = Math.floor(
+      (todayDate.getTime() - cycleStart.getTime()) / 86_400_000,
+    );
+    const currentBlockStart = new Date(cycleStart);
+    currentBlockStart.setDate(
+      cycleStart.getDate() + Math.floor(daysSinceStart / 28) * 28,
+    );
+    const blockStartStr = currentBlockStart.toISOString().slice(0, 10);
+    const blockEndDate = new Date(currentBlockStart);
+    blockEndDate.setDate(currentBlockStart.getDate() + 27);
+    const blockEndStr = blockEndDate.toISOString().slice(0, 10);
+
+    // Get baseline CTL (from last activity before block)
+    const preBlockActivities = activities.filter(
+      (a) => a.activityDate < blockStartStr,
+    );
+    const baselineCtl =
+      preBlockActivities[preBlockActivities.length - 1]?.ctl ?? 70;
+
+    // Get block activities
+    const blockActivities = activities.filter(
+      (a) => a.activityDate >= blockStartStr && a.activityDate <= blockEndStr,
+    );
+
+    const checkpoints = analyzeFitnessTrajectory(
+      blockStartStr,
+      baselineCtl,
+      blockActivities,
+    );
+
+    const blockEndCtl =
+      checkpoints[checkpoints.length - 1]?.actualCtl ?? baselineCtl;
+
+    // Get prescribed workouts for compliance
+    const { data: workouts } = await db
+      .from("prescribed_workouts")
+      .select("workout_date, sport, duration_min, intensity")
+      .eq("athlete_id", athleteId)
+      .gte("workout_date", blockStartStr)
+      .lte("workout_date", blockEndStr);
+
+    if (workouts && workouts.length > 0) {
+      const reports = calculateBlockCompliance(
+        blockStartStr,
+        workouts,
+        activities,
+      );
+
+      const totalCompleted = reports.reduce(
+        (sum, r) => sum + r.workoutsCompleted,
+        0,
+      );
+      const totalPrescribed = reports.reduce(
+        (sum, r) => sum + r.workoutsPrescribed,
+        0,
+      );
+      const overallCompliance =
+        totalPrescribed > 0
+          ? Math.round((totalCompleted / totalPrescribed) * 100)
+          : 100;
+
+      const overtrainingDays = checkpoints.filter(
+        (c) => c.trend === "stalled",
+      ).length;
+
+      blockEffectiveness = calculateBlockEffectiveness(
+        baselineCtl,
+        blockEndCtl,
+        overallCompliance,
+        overtrainingDays,
+      );
+
+      console.log(
+        `[daily] Block effectiveness: ${blockEffectiveness}/100 (compliance: ${overallCompliance}%, CTL gain: ${blockEndCtl - baselineCtl})`,
+      );
+    }
+  } catch (err) {
+    console.warn("[daily] Could not calculate block effectiveness:", err);
+  }
+
+  metrics.blockEffectiveness = blockEffectiveness;
+
   console.log(
     `[daily] Readiness: ${metrics.readinessScore}/100 | TSB: ${metrics.tsb} | Week ${metrics.cycleWeekNumber} (${metrics.cycleWeekType})`,
   );
@@ -162,6 +263,7 @@ export async function runDailyAnalysis(
       analysis_date: today,
       readiness_score: metrics.readinessScore,
       hrv_trend: metrics.hrvTrend,
+      block_effectiveness: metrics.blockEffectiveness,
       agent_output: recovery,
       model_used: MODEL,
     });
@@ -248,7 +350,59 @@ export async function runDailyAnalysis(
       model_used: MODEL,
     });
   } else {
-    console.log("[daily] Keeping existing prescribed workout for today");
+    // Existing workout found — check if adaptation suggestion needed
+
+    // Get expected readiness for current training phase
+    const expectedReadiness = getExpectedReadiness(metrics.cycleWeekType);
+
+    // Check for major deviation from expected trajectory
+    const deviation = checkReadinessDeviation(metrics, expectedReadiness);
+
+    if (deviation.severity === "major" || deviation.severity === "moderate") {
+      // Calculate training capacity based on current state
+      const capacity = getTrainingCapacity(
+        metrics.readinessScore,
+        metrics.tsb,
+        metrics.hrvTrend,
+      );
+
+      // Generate adaptation suggestion
+      const suggestion = suggestAdaptation(
+        {
+          sport: existingWorkout.sport ?? "bike",
+          durationMin: existingWorkout.duration_min ?? 60,
+          intensity: existingWorkout.intensity ?? "moderate",
+        },
+        capacity,
+        recovery.readiness,
+      );
+
+      console.log(
+        `[daily] ${deviation.severity.toUpperCase()} deviation: ${deviation.reason}`,
+      );
+      if (suggestion.shouldAdapt) {
+        console.log(
+          `[daily] Adaptation suggested: ${existingWorkout.intensity} → ${suggestion.suggestedIntensity}, ${existingWorkout.duration_min}min → ${suggestion.suggestedDurationMin}min`,
+        );
+      }
+
+      // Store deviation + suggestion in agent_output for UI
+      await db
+        .from("prescribed_workouts")
+        .update({
+          agent_output: {
+            ...(existingWorkout.agent_output as Record<string, unknown>),
+            deviationFlag: deviation,
+            adaptationSuggestion: suggestion.shouldAdapt ? suggestion : null,
+          },
+        })
+        .eq("athlete_id", athleteId)
+        .eq("workout_date", today);
+    } else {
+      console.log(
+        `[daily] ✓ Readiness within expected range for ${metrics.cycleWeekType} week`,
+      );
+    }
   }
 
   // ── Store in semantic memory ───────────────────────────────────────────────

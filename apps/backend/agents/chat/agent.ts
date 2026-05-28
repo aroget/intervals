@@ -33,7 +33,9 @@ async function buildCrossSessionContext(
   const [analysesResult, memoriesResult] = await Promise.allSettled([
     db
       .from("daily_analyses")
-      .select("analysis_date, readiness_score, hrv_trend, agent_output")
+      .select(
+        "analysis_date, readiness_score, hrv_trend, block_effectiveness, agent_output",
+      )
       .eq("athlete_id", athleteId)
       .order("analysis_date", { ascending: false })
       .limit(5),
@@ -53,6 +55,28 @@ async function buildCrossSessionContext(
     analysesResult.status === "fulfilled" &&
     analysesResult.value.data?.length
   ) {
+    const latestAnalysis = analysesResult.value.data[0] as Record<
+      string,
+      unknown
+    >;
+    const blockEff = latestAnalysis.block_effectiveness as number | null;
+
+    if (blockEff != null) {
+      lines.push(
+        `CURRENT 4-WEEK BLOCK EFFECTIVENESS: ${Math.round(blockEff)}/100`,
+      );
+      const interpretation =
+        blockEff >= 75
+          ? "highly effective"
+          : blockEff >= 50
+            ? "moderately effective"
+            : "underperforming";
+      lines.push(
+        `  (${interpretation} — measures CTL gains + compliance - overtraining)`,
+      );
+      lines.push("");
+    }
+
     lines.push("Recent recovery analyses:");
     for (const row of analysesResult.value.data as Record<string, unknown>[]) {
       const out = (row.agent_output as Record<string, unknown>) ?? {};

@@ -38,14 +38,38 @@ Intensity Type Examples:
 - Bike: A range of HR zones for low intensity, and percentage of the athlete's threshold power for high intensity intervals (e.g., "200-220W" or "60-70% LTHR").
 - Do not mix intensity types within the same workout. If the intervals use power, all intensity types should be in power. If using pace, all should be in pace or heart rate.
 
-Example Output:
--15m 6:00-6:30 Pace
+Example Output 1: Easy/Recovery Run (Strictly HR)
+-10m 60-70% LTHR
+-40m 65-75% LTHR
+-10m 60-70% LTHR
+
+Example Output 2: Hard/Interval Run (Strictly % Pace)
+-15m 75-80% Pace
 
 4x
--8m 4:50-5:10 Pace
--2m 6:30-7:30 Pace
+-8m 95-100% Pace
+-2m 70-75% Pace
 
--10m 6:00-6:30 Pace`,
+-10m 75-80% Pace
+
+Example Output 3: Single Set Hard Run (Strictly % Pace)
+-10m 80% Pace
+-30m 95% Pace
+-10m 75% Pace
+
+Example Output 4: Easy/Recovery Bike (Strictly HR)
+-15m 55-65% HR
+-60m 65-75% HR
+-15m 55-65% HR
+
+Example Output 5: Hard/Interval Bike (Strictly % FTP)
+-20m 65-75% FTP
+
+5x
+-5m 105-110% FTP
+-3m 55% FTP
+
+-15m 60-70% FTP`,
   ),
   rationale: z.string().describe("Why this specific workout was chosen today"),
   adjustmentsFromPlan: z

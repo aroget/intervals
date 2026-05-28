@@ -80,13 +80,13 @@ export function fromActivityRow(r: any): Activity {
     decoupling: r.decoupling ?? null,
     elevationM: r.elevation_m,
     notes: r.notes,
-    average_temp: null,
+    average_temp: r.average_temp ?? null,
     rpe: r.rpe ?? null,
     athleteComments: r.athlete_comments ?? null,
-    paceLoad: null,
-    hrLoad: null,
-    powerLoad: null,
-    efficiencyFactor: null,
+    paceLoad: r.pace_load ?? null,
+    hrLoad: r.hr_load ?? null,
+    powerLoad: r.power_load ?? null,
+    efficiencyFactor: r.efficiency_factor ?? null,
   };
 }
 
