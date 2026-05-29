@@ -50,6 +50,7 @@ export interface Activity {
   average_temp: number | null;
   athleteComments: string | null; // athlete's post-session notes
   rpe: number | null; // 1–10 athlete-reported RPE (Intervals.icu "feel")
+  sessionType: string | null; // key | endurance | recovery | rest (inferred from prescription or TSS)
   paceLoad: number | null; // custom metric: pace * duration
   hrLoad: number | null; // custom metric: avg_hr * duration
   powerLoad: number | null; // custom metric: avg_power * duration
@@ -73,6 +74,9 @@ export interface PrescribedWorkout {
   sport: string | null;
   durationMin: number | null;
   intensity: string | null;
+  sessionType: string | null; // key | endurance | recovery | rest
+  hadDeviationFlag: boolean; // Was there a readiness warning?
+  deviationSeverity: string | null; // moderate | major
   structure: WorkoutStructure | null;
   rationale: string | null;
   agentOutput: CoachAgentOutput;

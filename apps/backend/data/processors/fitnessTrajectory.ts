@@ -19,7 +19,7 @@ export interface FitnessCheckpoint {
 
 /**
  * Calculate expected CTL progression for a training block.
- * Assumes linear CTL growth during build weeks, maintenance during peak, recovery in week 4.
+ * Calculates incrementally week-by-week from baseline.
  */
 export function getExpectedCtl(
   baselineCtl: number,
@@ -28,14 +28,22 @@ export function getExpectedCtl(
 ): number {
   // Expected CTL gains per week by phase
   const weeklyGains: Record<string, number> = {
-    base: 3, // Steady aerobic building
-    build: 5, // Aggressive loading
-    peak: 2, // Maintain with quality
-    recovery: -3, // Controlled de-load
+    base: 3, // +3 CTL
+    build: 5, // +5 CTL
+    peak: 2, // +2 CTL
+    recovery: -3, // -3 CTL (de-load)
   };
 
-  const gain = weeklyGains[weekType] ?? 3;
-  return baselineCtl + gain * weekInBlock;
+  // Calculate cumulative gains up to this week
+  const weekTypes = ["base", "build", "peak", "recovery"];
+  let cumulativeGain = 0;
+
+  for (let i = 0; i < weekInBlock; i++) {
+    const type = weekTypes[i] ?? "base";
+    cumulativeGain += weeklyGains[type] ?? 3;
+  }
+
+  return baselineCtl + cumulativeGain;
 }
 
 /**
@@ -75,7 +83,11 @@ export function analyzeFitnessTrajectory(
     const lastActivity = weekActivities[weekActivities.length - 1];
     const actualCtl = lastActivity?.ctl ?? baselineCtl;
 
-    const expectedCtl = getExpectedCtl(baselineCtl, weekNum + 1, weekTypes[weekNum]);
+    const expectedCtl = getExpectedCtl(
+      baselineCtl,
+      weekNum + 1,
+      weekTypes[weekNum],
+    );
     const deviation = actualCtl - expectedCtl;
     const deviationPct =
       expectedCtl > 0 ? Math.round((deviation / expectedCtl) * 100) : 0;
@@ -106,8 +118,7 @@ export function analyzeFitnessTrajectory(
             new Date(weekStart.getTime() - 7 * 86_400_000)
               .toISOString()
               .slice(0, 10) &&
-          a.activityDate <
-            weekStart.toISOString().slice(0, 10),
+          a.activityDate < weekStart.toISOString().slice(0, 10),
       );
       const prevCtl =
         prevWeekActivities[prevWeekActivities.length - 1]?.ctl ?? baselineCtl;
@@ -134,27 +145,75 @@ export function analyzeFitnessTrajectory(
   return checkpoints;
 }
 
+export interface SessionData {
+  sessionType: string; // key | endurance | recovery | rest
+  completed: boolean;
+  hadDeviationFlag?: boolean; // Was there a ⚠️ readiness warning?
+  deviationSeverity?: "moderate" | "major"; // Severity of the warning
+}
+
+/**
+ * Calculate context-aware weighted compliance.
+ * Reduces penalties for sessions skipped when system warned about low readiness.
+ */
+function calculateWeightedCompliance(sessions: SessionData[]): number {
+  const baseWeights: Record<string, number> = {
+    key: 3.0, // High-quality sessions — critical for adaptation
+    endurance: 2.0, // Base building — important for fitness
+    recovery: 1.0, // Active recovery — aids adaptation
+    rest: 0.5, // Planned rest — bonus if followed
+  };
+
+  let totalWeight = 0;
+  let completedWeight = 0;
+
+  for (const session of sessions) {
+    let weight = baseWeights[session.sessionType] ?? 1.0;
+
+    // Apply penalty reduction if session was skipped with a deviation warning
+    // This rewards smart skips (following system advice) vs lazy skips
+    if (!session.completed && session.hadDeviationFlag) {
+      if (session.deviationSeverity === "major") {
+        weight *= 0.25; // 75% penalty reduction - system strongly advised skip
+      } else if (session.deviationSeverity === "moderate") {
+        weight *= 0.5; // 50% penalty reduction - system suggested caution
+      }
+    }
+
+    totalWeight += weight;
+    if (session.completed) {
+      completedWeight += weight;
+    }
+  }
+
+  return totalWeight > 0 ? (completedWeight / totalWeight) * 100 : 0;
+}
+
 /**
  * Get overall block effectiveness score (0-100).
- * Based on: CTL gains, compliance, no overtraining indicators.
+ * Based on: CTL gains, weighted compliance (prioritizing key sessions), no overtraining indicators.
  */
 export function calculateBlockEffectiveness(
   blockStartCtl: number,
   blockEndCtl: number,
   complianceRate: number,
   overtrainingRiskDays: number,
+  sessions?: SessionData[], // Optional: for weighted compliance calculation
 ): number {
   // Expected CTL gain over 4 weeks: ~15 points (3+5+5+2)
   const expectedGain = 15;
   const actualGain = blockEndCtl - blockStartCtl;
   const gainScore = Math.min(100, (actualGain / expectedGain) * 100);
 
-  // Compliance penalty
-  const complianceScore = complianceRate;
+  // Use weighted compliance if session data provided, otherwise use raw compliance rate
+  const complianceScore =
+    sessions && sessions.length > 0
+      ? calculateWeightedCompliance(sessions)
+      : complianceRate;
 
   // Overtraining penalty (1 day = -5 points)
   const overtrainingPenalty = Math.min(50, overtrainingRiskDays * 5);
 
-  const raw = (gainScore * 0.5 + complianceScore * 0.5) - overtrainingPenalty;
+  const raw = gainScore * 0.5 + complianceScore * 0.5 - overtrainingPenalty;
   return Math.max(0, Math.min(100, Math.round(raw)));
 }

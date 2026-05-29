@@ -8,16 +8,9 @@ import { loadProfile, loadWellness, loadActivities } from "../db/loaders.js";
 import { buildComputedMetrics } from "../data/processors/readiness.js";
 import { buildComplianceReport } from "../data/processors/workoutCompliance.js";
 import {
-  getTrainingCapacity,
-  suggestAdaptation,
-} from "../data/processors/workoutAdapter.js";
-import {
-  getExpectedReadiness,
-  checkReadinessDeviation,
-} from "../data/processors/deviationChecker.js";
-import {
   analyzeFitnessTrajectory,
   calculateBlockEffectiveness,
+  type SessionData,
 } from "../data/processors/fitnessTrajectory.js";
 import { calculateBlockCompliance } from "../data/processors/weeklyCompliance.js";
 import { runRecoveryAgent } from "./recovery/agent.js";
@@ -174,7 +167,9 @@ export async function runDailyAnalysis(
     // Get prescribed workouts for compliance
     const { data: workouts } = await db
       .from("prescribed_workouts")
-      .select("workout_date, sport, duration_min, intensity")
+      .select(
+        "workout_date, sport, duration_min, intensity, session_type, had_deviation_flag, deviation_severity, agent_output",
+      )
       .eq("athlete_id", athleteId)
       .gte("workout_date", blockStartStr)
       .lte("workout_date", blockEndStr);
@@ -203,15 +198,35 @@ export async function runDailyAnalysis(
         (c) => c.trend === "stalled",
       ).length;
 
+      // Build session data for weighted compliance (includes deviation flags)
+      const sessions: SessionData[] = workouts.map((w: any) => {
+        const sessionType =
+          w.session_type || w.agent_output?.sessionType || "endurance";
+        const workoutDate = w.workout_date;
+        const completed = blockActivities.some(
+          (a) => a.activityDate === workoutDate,
+        );
+        return {
+          sessionType,
+          completed,
+          hadDeviationFlag: w.had_deviation_flag ?? false,
+          deviationSeverity: w.deviation_severity ?? undefined,
+        };
+      });
+
       blockEffectiveness = calculateBlockEffectiveness(
         baselineCtl,
         blockEndCtl,
         overallCompliance,
         overtrainingDays,
+        sessions, // Pass session data with deviation flags for context-aware weighting
       );
 
+      const smartSkips = sessions.filter(
+        (s) => !s.completed && s.hadDeviationFlag,
+      ).length;
       console.log(
-        `[daily] Block effectiveness: ${blockEffectiveness}/100 (compliance: ${overallCompliance}%, CTL gain: ${blockEndCtl - baselineCtl})`,
+        `[daily] Block effectiveness: ${blockEffectiveness}/100 (weighted compliance with ${sessions.filter((s) => s.sessionType === "key").length} key sessions, ${smartSkips} smart skips, CTL gain: ${blockEndCtl - baselineCtl})`,
       );
     }
   } catch (err) {
@@ -337,72 +352,48 @@ export async function runDailyAnalysis(
     `[daily] Workout: ${workout.durationMin}min ${workout.sport} (${workout.intensity})`,
   );
 
-  if (!existingWorkout || force) {
-    await db.from("prescribed_workouts").insert({
-      athlete_id: athleteId,
-      workout_date: today,
-      sport: workout.sport,
-      duration_min: workout.durationMin,
-      intensity: workout.intensity,
-      structure: workout.workoutStructure,
-      rationale: workout.rationale,
-      agent_output: workout,
-      model_used: MODEL,
-    });
-  } else {
-    // Existing workout found — check if adaptation suggestion needed
+  // Always re-prescribe today's workout with fresh data
+  // For future dates, keep tentative plan for calendar view
+  const isToday = today === new Date().toISOString().slice(0, 10);
+  const shouldUpdate = !existingWorkout || force || isToday;
 
-    // Get expected readiness for current training phase
-    const expectedReadiness = getExpectedReadiness(metrics.cycleWeekType);
-
-    // Check for major deviation from expected trajectory
-    const deviation = checkReadinessDeviation(metrics, expectedReadiness);
-
-    if (deviation.severity === "major" || deviation.severity === "moderate") {
-      // Calculate training capacity based on current state
-      const capacity = getTrainingCapacity(
-        metrics.readinessScore,
-        metrics.tsb,
-        metrics.hrvTrend,
-      );
-
-      // Generate adaptation suggestion
-      const suggestion = suggestAdaptation(
-        {
-          sport: existingWorkout.sport ?? "bike",
-          durationMin: existingWorkout.duration_min ?? 60,
-          intensity: existingWorkout.intensity ?? "moderate",
-        },
-        capacity,
-        recovery.readiness,
-      );
-
-      console.log(
-        `[daily] ${deviation.severity.toUpperCase()} deviation: ${deviation.reason}`,
-      );
-      if (suggestion.shouldAdapt) {
-        console.log(
-          `[daily] Adaptation suggested: ${existingWorkout.intensity} → ${suggestion.suggestedIntensity}, ${existingWorkout.duration_min}min → ${suggestion.suggestedDurationMin}min`,
-        );
-      }
-
-      // Store deviation + suggestion in agent_output for UI
+  if (shouldUpdate) {
+    if (existingWorkout && isToday) {
+      // Update existing prescription with today's fresh data
       await db
         .from("prescribed_workouts")
         .update({
-          agent_output: {
-            ...(existingWorkout.agent_output as Record<string, unknown>),
-            deviationFlag: deviation,
-            adaptationSuggestion: suggestion.shouldAdapt ? suggestion : null,
-          },
+          sport: workout.sport,
+          duration_min: workout.durationMin,
+          intensity: workout.intensity,
+          session_type: workout.sessionType ?? null,
+          structure: workout.workoutStructure,
+          rationale: workout.rationale,
+          agent_output: workout,
+          model_used: MODEL,
         })
         .eq("athlete_id", athleteId)
         .eq("workout_date", today);
-    } else {
-      console.log(
-        `[daily] ✓ Readiness within expected range for ${metrics.cycleWeekType} week`,
-      );
+      console.log(`[daily] ✓ Updated today's prescription with fresh recovery data`);
+    } else if (!existingWorkout || force) {
+      // Insert new prescription
+      await db.from("prescribed_workouts").insert({
+        athlete_id: athleteId,
+        workout_date: today,
+        sport: workout.sport,
+        duration_min: workout.durationMin,
+        intensity: workout.intensity,
+        session_type: workout.sessionType ?? null,
+        structure: workout.workoutStructure,
+        rationale: workout.rationale,
+        agent_output: workout,
+        model_used: MODEL,
+      });
     }
+  } else {
+    console.log(
+      `[daily] ✓ Keeping existing prescription for future date ${today}`,
+    );
   }
 
   // ── Store in semantic memory ───────────────────────────────────────────────
@@ -531,6 +522,7 @@ export async function replanWeekWorkouts(
       sport: workout.sport,
       duration_min: workout.durationMin,
       intensity: workout.intensity,
+      session_type: workout.sessionType ?? null,
       structure: workout.workoutStructure,
       rationale: workout.rationale,
       agent_output: workout,

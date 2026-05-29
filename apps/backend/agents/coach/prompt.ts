@@ -36,10 +36,25 @@ CORE COACHING RULES:
    - Peak week (Week 3): max 2 hard sessions for the whole week
    - Recovery week (Week 4): 0 hard sessions — easy/rest only
    If the weekly hard cap is already reached in the plan, today MUST be easy or rest.
-7. NEVER prescribe hard or moderate intensity the day after a hard session. Check WEEK PLAN SO FAR for yesterday's session.
-8. The default intensity for any day not explicitly requiring quality work is EASY. Most days should be easy.
-9. ${isSingleSport ? "Single-sport athlete — prescribe only " + disciplines + " sessions." : `Multi-sport athlete — distribute sports across the week. Rotate through [${disciplines}] to avoid fatigue accumulation in one discipline. Never prescribe the same sport more than two days in a row. If today's "WEEK PLAN SO FAR" shows a pattern, break it with a different sport.`}
-10. Output only valid JSON matching the required schema.`;
+7. SESSION TYPE CLASSIFICATION (assign based on workout purpose):
+   - key: High-intensity sessions with intervals, tempo, or race pace work — critical for performance gains
+     * Base week: 1 key session (e.g., threshold intervals)
+     * Build week: 2 key sessions (e.g., VO2max + tempo)
+     * Peak week: 2-3 key sessions (race-specific intensity)
+     * Recovery week: 0 key sessions
+   - endurance: Long aerobic sessions building base fitness — volume-focused
+     * Base week: 2-3 endurance sessions
+     * Build week: 2 endurance sessions
+     * Peak week: 1-2 endurance sessions
+     * Recovery week: 0-1 short easy endurance session
+   - recovery: Active recovery at very easy pace/power — aids adaptation without fatigue
+     * All weeks: 1-2 recovery sessions between hard efforts
+   - rest: Complete rest day
+     * All weeks: at least 1 full rest day
+8. NEVER prescribe hard or moderate intensity the day after a hard session. Check WEEK PLAN SO FAR for yesterday's session.
+9. The default intensity for any day not explicitly requiring quality work is EASY. Most days should be easy.
+10. ${isSingleSport ? "Single-sport athlete — prescribe only " + disciplines + " sessions." : `Multi-sport athlete — distribute sports across the week. Rotate through [${disciplines}] to avoid fatigue accumulation in one discipline. Never prescribe the same sport more than two days in a row. If today's "WEEK PLAN SO FAR" shows a pattern, break it with a different sport.`}
+11. Output only valid JSON matching the required schema.`;
 }
 
 export function buildCoachUserPrompt(params: {
@@ -137,6 +152,7 @@ Return a JSON object with this exact shape:
   "sport": "run" | "bike" | "swim" | "strength",
   "durationMin": <number, max ${maxMinutes}>,
   "intensity": "easy" | "moderate" | "hard" | "rest",
+  "sessionType": "key" | "endurance" | "recovery" | "rest",
   "workoutStructure": "<see STRICT FORMAT RULES below>",
   "rationale": "...",
   "adjustmentsFromPlan": [...],

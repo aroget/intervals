@@ -72,10 +72,14 @@ CREATE TABLE IF NOT EXISTS activities (
   notes           TEXT,
   rpe             NUMERIC,                   -- Athlete RPE 1–10 (feel field)
   athlete_comments TEXT,                     -- Post-session notes
+  session_type    TEXT,                      -- key | endurance | recovery | rest (inferred from prescription or TSS)
   post_workout_analysis TEXT,                -- AI-generated post-workout analysis (cached)
   raw_data        JSONB,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration (run if table already exists):
+-- ALTER TABLE activities ADD COLUMN IF NOT EXISTS session_type TEXT;
 
 
 -- ────────────────────────────────────────────────────────────────
@@ -123,6 +127,9 @@ CREATE TABLE IF NOT EXISTS prescribed_workouts (
   sport         TEXT,
   duration_min  INTEGER,
   intensity     TEXT,                    -- easy | moderate | hard | rest
+  session_type  TEXT,                    -- key | endurance | recovery | rest
+  had_deviation_flag BOOLEAN DEFAULT FALSE,  -- Was there a ⚠️ readiness warning?
+  deviation_severity TEXT,               -- moderate | major (severity of the flag)
   structure     JSONB,                   -- detailed intervals / phases
   rationale     TEXT,
   agent_output  JSONB NOT NULL,          -- full Coach Agent structured output
@@ -131,6 +138,11 @@ CREATE TABLE IF NOT EXISTS prescribed_workouts (
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(athlete_id, workout_date)
 );
+
+-- Migration (run if table already exists):
+-- ALTER TABLE prescribed_workouts ADD COLUMN IF NOT EXISTS session_type TEXT;
+-- ALTER TABLE prescribed_workouts ADD COLUMN IF NOT EXISTS had_deviation_flag BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE prescribed_workouts ADD COLUMN IF NOT EXISTS deviation_severity TEXT;
 
 -- ────────────────────────────────────────────────────────────────
 -- Agent memory (semantic / episodic)

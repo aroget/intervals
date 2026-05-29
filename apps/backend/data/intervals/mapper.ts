@@ -83,6 +83,7 @@ export function fromActivityRow(r: any): Activity {
     average_temp: r.average_temp ?? null,
     rpe: r.rpe ?? null,
     athleteComments: r.athlete_comments ?? null,
+    sessionType: r.session_type ?? null,
     paceLoad: r.pace_load ?? null,
     hrLoad: r.hr_load ?? null,
     powerLoad: r.power_load ?? null,

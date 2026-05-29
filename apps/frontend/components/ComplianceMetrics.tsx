@@ -350,7 +350,7 @@ function FitnessTrajectoryChart({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-label={`Week ${checkpoint.weekInBlock} CTL progress: ${percentage}% of target`}
-              className="relative h-8 bg-bg-user rounded-lg overflow-hidden border border-border"
+              className="relative h-3 bg-bg-user rounded-lg overflow-hidden border border-border"
             >
               {/* Actual progress */}
               <div
@@ -363,15 +363,19 @@ function FitnessTrajectoryChart({
               />
 
               {/* CTL values overlay */}
-              <div className="absolute inset-0 flex items-center justify-between px-2 sm:px-3">
+              {/* <div className="absolute inset-0 flex items-center justify-between px-2 sm:px-3">
                 <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow-md">
                   {checkpoint.actualCtl} CTL
                 </span>
                 <span className="text-[10px] sm:text-xs font-semibold text-text">
                   target: {checkpoint.expectedCtl}
                 </span>
-              </div>
+              </div> */}
             </div>
+
+            <p className="text-xs text-muted  pl-1">
+              {checkpoint.actualCtl} / {checkpoint.expectedCtl} CTL
+            </p>
 
             {/* Trend indicator */}
             {checkpoint.note && (

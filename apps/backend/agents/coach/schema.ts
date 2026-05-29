@@ -26,6 +26,13 @@ export const CoachOutputSchema = z.object({
       "Total workout duration in minutes (must not exceed maxHoursToday × 60)",
     ),
   intensity: z.enum(["easy", "moderate", "hard", "rest"]),
+  sessionType: z.enum(["key", "endurance", "recovery", "rest"]).describe(
+    `Session classification by training purpose:
+- key: High-quality sessions (intervals, tempo, race pace) — critical for adaptation, highest priority
+- endurance: Aerobic base building (long runs, steady rides) — volume for fitness development
+- recovery: Active recovery (easy pace, low HR) — aids recovery without fatigue accumulation
+- rest: Complete rest day — no activity prescribed`,
+  ),
   workoutStructure: z.string().describe(
     `Strict Intervals.icu workout code.
 Rules:

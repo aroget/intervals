@@ -150,6 +150,123 @@ export default function BlockOverview({
             </p>
           </div>
         </div>
+
+        {/* Session Type Breakdown */}
+        {(() => {
+          const keyPrescribed = currentWeekData.days.filter(
+            (d) =>
+              d.workout?.session_type === "key" ||
+              d.workout?.agent_output?.sessionType === "key",
+          ).length;
+          const keyCompleted = currentWeekData.days.filter(
+            (d) =>
+              (d.workout?.session_type === "key" ||
+                d.workout?.agent_output?.sessionType === "key") &&
+              d.completed,
+          ).length;
+          const endurancePrescribed = currentWeekData.days.filter(
+            (d) =>
+              d.workout?.session_type === "endurance" ||
+              d.workout?.agent_output?.sessionType === "endurance",
+          ).length;
+          const enduranceCompleted = currentWeekData.days.filter(
+            (d) =>
+              (d.workout?.session_type === "endurance" ||
+                d.workout?.agent_output?.sessionType === "endurance") &&
+              d.completed,
+          ).length;
+          const recoveryPrescribed = currentWeekData.days.filter(
+            (d) =>
+              d.workout?.session_type === "recovery" ||
+              d.workout?.agent_output?.sessionType === "recovery",
+          ).length;
+          const recoveryCompleted = currentWeekData.days.filter(
+            (d) =>
+              (d.workout?.session_type === "recovery" ||
+                d.workout?.agent_output?.sessionType === "recovery") &&
+              d.completed,
+          ).length;
+
+          const hasSessionData =
+            keyPrescribed > 0 ||
+            endurancePrescribed > 0 ||
+            recoveryPrescribed > 0;
+
+          if (!hasSessionData) return null;
+
+          return (
+            <div className="mt-6 space-y-3">
+              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted">
+                Session Type Breakdown
+              </p>
+              <div className="space-y-2">
+                {keyPrescribed > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-text w-20">
+                      Key
+                    </span>
+                    <div className="flex-1 h-3 bg-bg-user rounded-full overflow-hidden border border-border">
+                      <div
+                        className="h-full bg-orange-bright transition-all"
+                        style={{
+                          width: `${(keyCompleted / keyPrescribed) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-text min-w-[60px] text-right">
+                      {keyCompleted}/{keyPrescribed} (
+                      {Math.round((keyCompleted / keyPrescribed) * 100)}%)
+                    </span>
+                  </div>
+                )}
+                {endurancePrescribed > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-text w-20">
+                      Endurance
+                    </span>
+                    <div className="flex-1 h-3 bg-bg-user rounded-full overflow-hidden border border-border">
+                      <div
+                        className="h-full bg-teal transition-all"
+                        style={{
+                          width: `${(enduranceCompleted / endurancePrescribed) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-text min-w-[60px] text-right">
+                      {enduranceCompleted}/{endurancePrescribed} (
+                      {Math.round(
+                        (enduranceCompleted / endurancePrescribed) * 100,
+                      )}
+                      %)
+                    </span>
+                  </div>
+                )}
+                {recoveryPrescribed > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-text w-20">
+                      Recovery
+                    </span>
+                    <div className="flex-1 h-3 bg-bg-user rounded-full overflow-hidden border border-border">
+                      <div
+                        className="h-full bg-peach transition-all"
+                        style={{
+                          width: `${(recoveryCompleted / recoveryPrescribed) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-text min-w-[60px] text-right">
+                      {recoveryCompleted}/{recoveryPrescribed} (
+                      {Math.round(
+                        (recoveryCompleted / recoveryPrescribed) * 100,
+                      )}
+                      %)
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Week Days List */}
@@ -232,10 +349,45 @@ function DayCard({
                   {day.workout.sport}
                 </p>
               </div>
-              <WorkoutBadge
-                intensity={day.workout.intensity}
-                className="text-[10px]"
-              />
+              <div className="flex items-center gap-1.5">
+                <WorkoutBadge
+                  intensity={day.workout.intensity}
+                  className="text-[10px]"
+                />
+                {(() => {
+                  const sessionType =
+                    day.workout.session_type ??
+                    day.workout.agent_output?.sessionType;
+                  if (!sessionType) return null;
+                  const typeConfig = {
+                    key: {
+                      label: "Key",
+                      color:
+                        "text-orange-bright border-orange-bright/30 bg-orange-bright/10",
+                    },
+                    endurance: {
+                      label: "Endurance",
+                      color: "text-teal border-teal/30 bg-teal/10",
+                    },
+                    recovery: {
+                      label: "Recovery",
+                      color: "text-peach border-peach/40 bg-peach/10",
+                    },
+                    rest: {
+                      label: "Rest",
+                      color: "text-muted border-border bg-bg-assistant",
+                    },
+                  }[sessionType as "key" | "endurance" | "recovery" | "rest"];
+                  if (!typeConfig) return null;
+                  return (
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${typeConfig.color}`}
+                    >
+                      {typeConfig.label}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
           ) : (
             <div className="text-sm text-muted italic">Rest day</div>
