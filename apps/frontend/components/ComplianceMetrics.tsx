@@ -56,6 +56,222 @@ interface BlockData {
   currentDay: string;
 }
 
+// Workout Detail Modal Component
+function WorkoutDetailModal({
+  day,
+  athleteId,
+  onClose,
+}: {
+  day: Day;
+  athleteId: string;
+  onClose: () => void;
+}) {
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(true);
+
+  useEffect(() => {
+    if (day.activity?.id) {
+      setLoadingAnalysis(true);
+      fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/activity-analysis/${day.activity.id}`,
+      )
+        .then((r) => r.json())
+        .then((data) => setAnalysis(data.analysis || null))
+        .catch(() => setAnalysis(null))
+        .finally(() => setLoadingAnalysis(false));
+    } else {
+      setLoadingAnalysis(false);
+    }
+  }, [day.activity?.id, athleteId]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const dateLabel = new Date(day.date + "T00:00:00").toLocaleDateString(
+    "en-US",
+    {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    },
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-2xl bg-bg-card border border-border rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* Modal header */}
+        <div className="sticky top-0 bg-bg-card border-b border-border px-6 py-4 flex items-start justify-between gap-4 rounded-t-2xl">
+          <div>
+            <h2 className="font-bold text-text text-lg">{dateLabel}</h2>
+            <p className="text-muted text-xs mt-0.5 capitalize">
+              {day.workout?.sport || "Workout"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-text transition-colors p-1 rounded-lg"
+            aria-label="Close"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-6">
+          {/* Prescribed Workout */}
+          {day.workout && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-text uppercase tracking-wider">
+                Prescribed Workout
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-bg rounded-lg p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Duration</p>
+                  <p className="text-lg font-bold text-text mt-1">{day.workout.duration_min || '—'} {day.workout.duration_min ? 'min' : ''}</p>
+                </div>
+                <div className="bg-bg rounded-lg p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Sport</p>
+                  <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.sport || '—'}</p>
+                </div>
+                {(day.workout.agent_output?.targetTss || day.workout.target_tss) && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Target TSS</p>
+                    <p className="text-lg font-bold text-text mt-1">{Math.round(day.workout.agent_output?.targetTss || day.workout.target_tss)}</p>
+                  </div>
+                )}
+                {day.workout.session_type && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Session Type</p>
+                    <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.session_type}</p>
+                  </div>
+                )}
+                {day.workout.intensity && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Intensity</p>
+                    <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.intensity}</p>
+                  </div>
+                )}
+              </div>
+              {day.workout.rationale && (
+                <div className="bg-bg rounded-lg p-4">
+                  <p className="text-xs text-text/70 leading-relaxed">{day.workout.rationale}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actual Completion */}
+          {day.completed && day.activity && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-teal uppercase tracking-wider flex items-center gap-2">
+                <span>Actual Completion</span>
+                <span className="text-xs font-bold">✓</span>
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {day.activity.duration_secs && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Duration</p>
+                    <p className="text-lg font-bold text-teal mt-1">
+                      {Math.round(day.activity.duration_secs / 60)} min
+                    </p>
+                  </div>
+                )}
+                {day.activity.tss && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">TSS</p>
+                    <p className="text-lg font-bold text-teal mt-1">
+                      {Math.round(day.activity.tss)}
+                    </p>
+                  </div>
+                )}
+                {day.activity.distance_m && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Distance</p>
+                    <p className="text-lg font-bold text-teal mt-1">
+                      {day.activity.distance_m >= 1000
+                        ? `${(day.activity.distance_m / 1000).toFixed(1)} km`
+                        : `${Math.round(day.activity.distance_m)} m`}
+                    </p>
+                  </div>
+                )}
+                {day.activity.avg_hr && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Avg HR</p>
+                    <p className="text-lg font-bold text-text mt-1">
+                      {Math.round(day.activity.avg_hr)} bpm
+                    </p>
+                  </div>
+                )}
+                {day.activity.avg_power && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Avg Power</p>
+                    <p className="text-lg font-bold text-text mt-1">
+                      {Math.round(day.activity.avg_power)} W
+                    </p>
+                  </div>
+                )}
+                {day.activity.rpe && (
+                  <div className="bg-bg rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">RPE</p>
+                    <p className="text-lg font-bold text-text mt-1">
+                      {day.activity.rpe}/10
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Coach Analysis */}
+          <div className="border-t border-border pt-5 space-y-3">
+            <h3 className="text-sm font-bold text-text uppercase tracking-wider">
+              Coach Analysis
+            </h3>
+            {loadingAnalysis ? (
+              <div className="flex items-center gap-2 text-muted text-sm animate-pulse">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce [animation-delay:-0.3s]" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce [animation-delay:-0.15s]" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal animate-bounce" />
+                <span className="ml-1">Analyzing execution...</span>
+              </div>
+            ) : analysis ? (
+              <div className="bg-bg rounded-lg p-4">
+                <p className="text-sm text-text leading-relaxed">{analysis}</p>
+              </div>
+            ) : (
+              <p className="text-muted text-sm italic">
+                No analysis available for this workout.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ComplianceMetrics({
   athleteId,
 }: {
@@ -67,6 +283,7 @@ export default function ComplianceMetrics({
   const [currentTsb, setCurrentTsb] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<Day | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -164,7 +381,17 @@ export default function ComplianceMetrics({
   );
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Workout Detail Modal */}
+      {selectedWorkoutDay && (
+        <WorkoutDetailModal
+          day={selectedWorkoutDay}
+          athleteId={athleteId}
+          onClose={() => setSelectedWorkoutDay(null)}
+        />
+      )}
+
+      <div className="space-y-6">
       {/* Unified Training Block & Schedule Card */}
       <div className="bg-bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
         {/* Header: Block Title + Overall Stats */}
@@ -318,13 +545,19 @@ export default function ComplianceMetrics({
                         "";
 
                       return (
-                        <div
+                        <button
                           key={day.date}
-                          className={`p-3 rounded-lg border transition-all ${
+                          onClick={() => {
+                            if (day.completed && day.activity) {
+                              setSelectedWorkoutDay(day);
+                            }
+                          }}
+                          disabled={!day.completed || !day.activity}
+                          className={`w-full text-left p-3 rounded-lg border transition-all ${
                             isToday
                               ? "border-teal bg-teal/5 ring-2 ring-teal/20"
                               : day.completed
-                                ? "border-border bg-bg-assistant"
+                                ? "border-border bg-bg-assistant hover:border-teal cursor-pointer"
                                 : "border-dashed border-border/50 bg-bg-card"
                           }`}
                         >
@@ -351,7 +584,7 @@ export default function ComplianceMetrics({
                               {day.workout && (
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-semibold text-text">
-                                    {day.workout.duration_minutes || 0} min
+                                    {day.workout.duration_min || 0} min
                                   </span>
                                   <span className="text-xs text-text/50">
                                     •
@@ -409,7 +642,7 @@ export default function ComplianceMetrics({
                               )}
                             </div>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                 </div>
@@ -562,6 +795,7 @@ export default function ComplianceMetrics({
           />
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
