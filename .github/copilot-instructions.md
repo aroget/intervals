@@ -2,9 +2,16 @@
 
 ## Architecture
 
-Multi-agent fitness coaching system built on Intervals.icu data. Two core agents run daily via GitHub Actions cron, plus a conversational chat agent accessible via REST API.
+Multi-agent fitness coaching system built on Intervals.icu data with daily adaptation via GitHub Actions cron.
 
 **Agent flow**: `Intervals.icu sync → Processors (no LLM) → Recovery Agent → Coach Agent → Semantic memory`
+
+**Automation schedule**:
+
+- **Daily 6am UTC**: Data sync (`pnpm sync`) — pulls latest from Intervals.icu
+- **Daily 6:30am UTC**: Daily analysis (`pnpm analyze`) — prescribes today's workout with fresh recovery data
+
+This architecture provides **daily adaptation**: today's workout always reflects current recovery status. No future prescriptions are generated - the system focuses on adapting to the athlete's actual state each morning.
 
 Key directories:
 

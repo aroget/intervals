@@ -15,7 +15,11 @@ import {
   analyzeFitnessTrajectory,
   calculateBlockEffectiveness,
 } from "../../data/processors/fitnessTrajectory.js";
-import { loadActivities } from "../../db/loaders.js";
+import { loadActivities, loadWellness } from "../../db/loaders.js";
+import { analyzeAllRecoveryPatterns } from "../../data/processors/recoveryPatterns.js";
+import { predictTomorrowReadiness } from "../../data/processors/readinessPrediction.js";
+import { detectAllComplianceFrictions } from "../../data/processors/complianceFriction.js";
+import { buildComputedMetrics } from "../../data/processors/readiness.js";
 
 const analysis = new Hono();
 /** GET /analysis/:athleteId/today — get today's analysis and workout */
@@ -158,6 +162,210 @@ analysis.post("/:athleteId/generate-week", async (c) => {
   })();
 
   return c.json({ started: true });
+});
+
+/** GET /analysis/:athleteId/block-history — last 6 blocks' effectiveness scores */
+analysis.get("/:athleteId/block-history", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  // Get athlete profile for cycle start
+  const { data: profile } = await db
+    .from("athlete_profiles")
+    .select("cycle_start_date")
+    .eq("athlete_id", athleteId)
+    .single();
+
+  if (!profile?.cycle_start_date) {
+    return c.json({ blocks: [] });
+  }
+
+  const cycleStart = new Date(profile.cycle_start_date);
+  const today = new Date();
+  const daysSinceStart = Math.floor(
+    (today.getTime() - cycleStart.getTime()) / 86_400_000,
+  );
+  const currentBlockNumber = Math.floor(daysSinceStart / 28);
+
+  // Get last 6 blocks (or fewer if not enough history)
+  const blocks = [];
+  const startBlock = Math.max(0, currentBlockNumber - 5);
+
+  for (let i = startBlock; i <= currentBlockNumber; i++) {
+    const blockStart = new Date(cycleStart);
+    blockStart.setDate(cycleStart.getDate() + i * 28);
+    const blockEnd = new Date(blockStart);
+    blockEnd.setDate(blockStart.getDate() + 27);
+
+    const blockStartStr = blockStart.toISOString().slice(0, 10);
+    const blockEndStr = blockEnd.toISOString().slice(0, 10);
+
+    // Get the last analysis in this block that has block_effectiveness
+    const { data: analysis } = await db
+      .from("daily_analyses")
+      .select("block_effectiveness, analysis_date")
+      .eq("athlete_id", athleteId)
+      .gte("analysis_date", blockStartStr)
+      .lte("analysis_date", blockEndStr)
+      .not("block_effectiveness", "is", null)
+      .order("analysis_date", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (analysis?.block_effectiveness != null) {
+      blocks.push({
+        blockNumber: i + 1,
+        startDate: blockStartStr,
+        endDate: blockEndStr,
+        effectiveness: analysis.block_effectiveness,
+        isCurrent: i === currentBlockNumber,
+      });
+    }
+  }
+
+  return c.json({ blocks });
+});
+
+/** GET /analysis/:athleteId/training-load-history — TSS per week for last 16 weeks */
+analysis.get("/:athleteId/training-load-history", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  // Get athlete profile for cycle start
+  const { data: profile } = await db
+    .from("athlete_profiles")
+    .select("cycle_start_date")
+    .eq("athlete_id", athleteId)
+    .single();
+
+  // Get activities from last 16 weeks
+  const since = new Date();
+  since.setDate(since.getDate() - 16 * 7);
+
+  const { data: activities } = await db
+    .from("activities")
+    .select("activity_date, tss")
+    .eq("athlete_id", athleteId)
+    .gte("activity_date", since.toISOString().slice(0, 10))
+    .order("activity_date", { ascending: true });
+
+  if (!activities || activities.length === 0) {
+    return c.json({ weeks: [] });
+  }
+
+  // Group by week (Monday start)
+  const weekMap = new Map<
+    string,
+    { weekStart: string; totalTss: number; activities: number }
+  >();
+
+  activities.forEach((a) => {
+    if (a.tss == null) return;
+    const date = new Date(a.activity_date + "T00:00:00");
+    const dayOfWeek = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - ((dayOfWeek + 6) % 7)); // Get Monday
+    const weekKey = monday.toISOString().slice(0, 10);
+
+    const existing = weekMap.get(weekKey) ?? {
+      weekStart: weekKey,
+      totalTss: 0,
+      activities: 0,
+    };
+    existing.totalTss += a.tss;
+    existing.activities += 1;
+    weekMap.set(weekKey, existing);
+  });
+
+  const weeks = Array.from(weekMap.values()).sort((a, b) =>
+    a.weekStart.localeCompare(b.weekStart),
+  );
+
+  // Add cycle week information if available
+  if (profile?.cycle_start_date) {
+    const cycleStart = new Date(profile.cycle_start_date);
+    weeks.forEach((week) => {
+      const weekDate = new Date(week.weekStart + "T00:00:00");
+      const daysSinceStart = Math.floor(
+        (weekDate.getTime() - cycleStart.getTime()) / 86_400_000,
+      );
+      const cycleWeek = (Math.floor(daysSinceStart / 7) % 4) + 1;
+      const weekTypes = ["Base", "Build", "Peak", "Recovery"];
+      (week as any).cycleWeek = cycleWeek;
+      (week as any).weekType = weekTypes[cycleWeek - 1];
+      (week as any).isRecoveryWeek = cycleWeek === 4;
+    });
+  }
+
+  return c.json({ weeks });
+});
+
+/** GET /analysis/:athleteId/recovery-patterns — detected recovery patterns */
+analysis.get("/:athleteId/recovery-patterns", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  const [wellness, activities] = await Promise.all([
+    loadWellness(athleteId, 90),
+    loadActivities(athleteId, 90),
+  ]);
+
+  const patterns = analyzeAllRecoveryPatterns(wellness, activities);
+
+  return c.json({ patterns });
+});
+
+/** GET /analysis/:athleteId/readiness-prediction — predict tomorrow's readiness */
+analysis.get("/:athleteId/readiness-prediction", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  const profile = await loadAthleteProfile(athleteId);
+  if (!profile.cycleStartDate) {
+    return c.json({ error: "Cycle start date not set" }, 400);
+  }
+
+  const [wellness, activities] = await Promise.all([
+    loadWellness(athleteId, 30),
+    loadActivities(athleteId, 30),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const metrics = buildComputedMetrics({
+    logs: wellness,
+    activities,
+    cycleStartDate: profile.cycleStartDate,
+    weeklyMaxHours: profile.weeklyMaxHours,
+    today,
+  });
+
+  const prediction = predictTomorrowReadiness(metrics, activities, wellness);
+
+  return c.json({ prediction });
+});
+
+/** GET /analysis/:athleteId/compliance-frictions — detect compliance issues */
+analysis.get("/:athleteId/compliance-frictions", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  // Get last 28 days (current block)
+  const since = new Date();
+  since.setDate(since.getDate() - 28);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const [{ data: workouts }, activities] = await Promise.all([
+    db
+      .from("prescribed_workouts")
+      .select("workout_date, sport, duration_min, intensity, session_type")
+      .eq("athlete_id", athleteId)
+      .gte("workout_date", sinceStr)
+      .order("workout_date", { ascending: true }),
+    loadActivities(athleteId, 28),
+  ]);
+
+  if (!workouts || workouts.length === 0) {
+    return c.json({ frictions: [] });
+  }
+
+  const frictions = detectAllComplianceFrictions(workouts, activities);
+
+  return c.json({ frictions });
 });
 
 export default analysis;
@@ -541,23 +749,16 @@ analysis.get("/:athleteId/compliance", async (c) => {
   blockEndDate.setDate(currentBlockStart.getDate() + 27);
   const blockEndStr = blockEndDate.toISOString().slice(0, 10);
 
-  // Get prescribed workouts and activities for this block
-  const [{ data: workouts }, { data: activityRows }] = await Promise.all([
-    db
-      .from("prescribed_workouts")
-      .select("workout_date, sport, duration_min, intensity")
-      .eq("athlete_id", athleteId)
-      .gte("workout_date", blockStartStr)
-      .lte("workout_date", blockEndStr)
-      .order("workout_date"),
-    db
-      .from("activities")
-      .select("*")
-      .eq("athlete_id", athleteId)
-      .gte("activity_date", blockStartStr)
-      .lte("activity_date", blockEndStr),
-  ]);
+  // Get prescribed workouts for this block
+  const { data: workouts } = await db
+    .from("prescribed_workouts")
+    .select("workout_date, sport, duration_min, intensity")
+    .eq("athlete_id", athleteId)
+    .gte("workout_date", blockStartStr)
+    .lte("workout_date", blockEndStr)
+    .order("workout_date");
 
+  // Get activities (using loader which transforms to camelCase)
   const activities = await loadActivities(athleteId, 90, blockEndStr);
 
   const reports = calculateBlockCompliance(
@@ -580,6 +781,13 @@ analysis.get("/:athleteId/compliance", async (c) => {
       ? Math.round((totalCompleted / totalPrescribed) * 100)
       : 100;
 
+  const totalTargetTss = reports.reduce((sum, r) => sum + r.targetTss, 0);
+  const totalActualTss = reports.reduce((sum, r) => sum + r.actualTss, 0);
+  const overallTssRate =
+    totalTargetTss > 0
+      ? Math.round((totalActualTss / totalTargetTss) * 100)
+      : 0;
+
   return c.json({
     blockStartDate: blockStartStr,
     blockEndDate: blockEndStr,
@@ -588,6 +796,7 @@ analysis.get("/:athleteId/compliance", async (c) => {
       workoutsCompleted: totalCompleted,
       workoutsPrescribed: totalPrescribed,
       complianceRate: overallRate,
+      tssComplianceRate: overallTssRate,
     },
   });
 });

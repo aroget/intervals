@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
-import BlockOverview from "@/components/BlockOverview";
-import ComplianceMetrics from "@/components/ComplianceMetrics";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
 const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
@@ -1021,25 +1019,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-
-          {/* Training Block Overview */}
-          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
-            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
-              Week Training Block
-            </h2>
-            <BlockOverview
-              athleteId={ATHLETE_ID}
-              onActivityClick={(activity) => setSelectedActivity(activity)}
-            />
-          </div>
-
-          {/* Compliance & Progress Metrics */}
-          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
-            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
-              Performance & Compliance
-            </h2>
-            <ComplianceMetrics athleteId={ATHLETE_ID} />
-          </div>
         </div>
       </div>
     </>

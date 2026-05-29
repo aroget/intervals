@@ -269,16 +269,18 @@ export default function BlockOverview({
         })()}
       </div>
 
-      {/* Week Days List */}
+      {/* Week Days List - Only show past + today */}
       <div className="space-y-2">
-        {currentWeekData.days.map((day) => (
-          <DayCard
-            key={day.date}
-            day={day}
-            isToday={day.date === blockData.currentDay}
-            onActivityClick={onActivityClick}
-          />
-        ))}
+        {currentWeekData.days
+          .filter((day) => day.date <= blockData.currentDay)
+          .map((day) => (
+            <DayCard
+              key={day.date}
+              day={day}
+              isToday={day.date === blockData.currentDay}
+              onActivityClick={onActivityClick}
+            />
+          ))}
       </div>
     </div>
   );

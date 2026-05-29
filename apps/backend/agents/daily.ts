@@ -374,7 +374,9 @@ export async function runDailyAnalysis(
         })
         .eq("athlete_id", athleteId)
         .eq("workout_date", today);
-      console.log(`[daily] ✓ Updated today's prescription with fresh recovery data`);
+      console.log(
+        `[daily] ✓ Updated today's prescription with fresh recovery data`,
+      );
     } else if (!existingWorkout || force) {
       // Insert new prescription
       await db.from("prescribed_workouts").insert({

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import CTLBandedChart from "./CTLBandedChart";
+import ComplianceRing from "./ComplianceRing";
+import FormStatusBadge from "./FormStatusBadge";
 
 interface WeeklyReport {
   weekNumber: number;
@@ -12,6 +15,8 @@ interface WeeklyReport {
   actualTss: number;
   tssComplianceRate: number;
   notes: string;
+  weekStartDate: string;
+  weekEndDate: string;
 }
 
 interface FitnessCheckpoint {
@@ -25,6 +30,32 @@ interface FitnessCheckpoint {
   note: string;
 }
 
+interface Day {
+  date: string;
+  dayOfWeek: string;
+  workout: any | null;
+  activity: any | null;
+  completed: boolean;
+}
+
+interface BlockWeek {
+  weekNumber: number;
+  weekType: string;
+  startDate: string;
+  endDate: string;
+  targetTss: number;
+  actualTss: number;
+  days: Day[];
+}
+
+interface BlockData {
+  startDate: string;
+  endDate: string;
+  weeks: BlockWeek[];
+  currentWeek: number;
+  currentDay: string;
+}
+
 export default function ComplianceMetrics({
   athleteId,
 }: {
@@ -32,7 +63,10 @@ export default function ComplianceMetrics({
 }) {
   const [complianceData, setComplianceData] = useState<any>(null);
   const [fitnessData, setFitnessData] = useState<any>(null);
+  const [blockData, setBlockData] = useState<BlockData | null>(null);
+  const [currentTsb, setCurrentTsb] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedWeek, setSelectedWeek] = useState<number>(1);
 
   useEffect(() => {
     fetchData();
@@ -40,22 +74,41 @@ export default function ComplianceMetrics({
 
   async function fetchData() {
     try {
-      const [complianceRes, fitnessRes] = await Promise.all([
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/compliance`,
-        ),
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/fitness-trajectory`,
-        ),
-      ]);
+      const [complianceRes, fitnessRes, activitiesRes, blockRes] =
+        await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/compliance`,
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/fitness-trajectory`,
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/athlete/${athleteId}/activities?days=30`,
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/block-overview`,
+          ),
+        ]);
 
-      const [compliance, fitness] = await Promise.all([
-        complianceRes.json(),
-        fitnessRes.json(),
-      ]);
+      const [compliance, fitness, activitiesData, blockResponse] =
+        await Promise.all([
+          complianceRes.json(),
+          fitnessRes.json(),
+          activitiesRes.json(),
+          blockRes.json(),
+        ]);
 
       setComplianceData(compliance);
       setFitnessData(fitness);
+      setBlockData(blockResponse.block);
+      setSelectedWeek(blockResponse.block.currentWeek);
+
+      // Calculate current TSB from latest activity
+      const latestActivity = activitiesData.activities?.[0];
+      if (latestActivity?.ctl != null && latestActivity?.atl != null) {
+        setCurrentTsb(Math.round(latestActivity.ctl - latestActivity.atl));
+      }
+
       setLoading(false);
     } catch (err) {
       console.error("Failed to load compliance data:", err);
@@ -75,6 +128,7 @@ export default function ComplianceMetrics({
   if (
     !complianceData ||
     !fitnessData ||
+    !blockData ||
     !fitnessData.checkpoints ||
     !complianceData.weeklyReports
   ) {
@@ -85,307 +139,429 @@ export default function ComplianceMetrics({
     );
   }
 
+  // Calculate transparent scoring components
+  const volumeAdherence =
+    complianceData.overallCompliance.tssComplianceRate || 0;
+  const workoutConsistency =
+    complianceData.overallCompliance.complianceRate || 0;
+  const fitnessGain =
+    fitnessData.checkpoints.length > 0
+      ? Math.round(
+          ((fitnessData.checkpoints[fitnessData.checkpoints.length - 1]
+            .actualCtl -
+            fitnessData.baselineCtl) /
+            fitnessData.baselineCtl) *
+            100,
+        )
+      : 0;
+
+  // Get current week data
+  const currentWeekData = blockData.weeks.find(
+    (w) => w.weekNumber === selectedWeek,
+  );
+  const complianceWeekData = complianceData.weeklyReports.find(
+    (w: WeeklyReport) => w.weekNumber === selectedWeek,
+  );
+
   return (
     <div className="space-y-6">
-      {/* Overall Effectiveness Score */}
-      <div className="bg-bg-card rounded-2xl shadow-sm border-2 border-teal p-4 sm:p-6">
-        <h3 className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted mb-3">
-          Block Effectiveness
-        </h3>
-        <div className="flex items-end gap-2 sm:gap-3">
-          <div className="text-4xl sm:text-5xl font-bold tabular-nums text-teal">
-            {fitnessData.effectiveness}
-          </div>
-          <div className="text-xl sm:text-2xl mb-2 text-muted">/100</div>
-        </div>
-        <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-muted">
-          Based on fitness gains, compliance, and training load management
-        </p>
-      </div>
+      {/* Unified Training Block & Schedule Card */}
+      <div className="bg-bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+        {/* Header: Block Title + Overall Stats */}
+        <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-teal/5 to-transparent">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            {/* Left: Block Title & Dates */}
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-teal mb-2">
+                Training Block
+              </h2>
+              <p className="text-sm text-text/60 font-medium">
+                {blockData.startDate} → {blockData.endDate}
+              </p>
+            </div>
 
-      {/* Overall Block Compliance */}
-      <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
-        <h3 className="text-[18px] font-semibold text-teal mb-4">
-          Block Compliance Summary
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="text-center">
-            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
-              {complianceData.overallCompliance.complianceRate}%
-            </p>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted mt-1">
-              Workout Adherence
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-orange-bright">
-              {complianceData.overallCompliance.workoutsCompleted}
-            </p>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted mt-1">
-              Sessions Completed
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-text">
-              {complianceData.overallCompliance.workoutsPrescribed}
-            </p>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted mt-1">
-              Sessions Prescribed
-            </p>
+            {/* Right: Overall Block Stats */}
+            <div className="flex gap-4 sm:gap-6">
+              <div className="text-center">
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
+                  {complianceData.overallCompliance.complianceRate}%
+                </p>
+                <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
+                  Total Compliance
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-orange-bright">
+                  {complianceData.overallCompliance.workoutsCompleted}
+                  <span className="text-lg text-text/40">
+                    /{complianceData.overallCompliance.workoutsPrescribed}
+                  </span>
+                </p>
+                <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
+                  Workouts Done
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Weekly Compliance Breakdown */}
-      <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
-        <h3 className="text-[18px] font-semibold text-teal mb-4">
-          Weekly Breakdown
-        </h3>
-        <div className="space-y-4">
-          {complianceData.weeklyReports.map((week: WeeklyReport) => (
-            <WeeklyComplianceCard key={week.weekNumber} week={week} />
-          ))}
+        {/* Navigation: Interactive Week Progress Bar */}
+        <div className="p-4 sm:p-6 border-b border-border bg-bg-assistant">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            {complianceData.weeklyReports.map((week: WeeklyReport) => {
+              const isCurrent = week.weekNumber === blockData.currentWeek;
+              const isSelected = week.weekNumber === selectedWeek;
+              const avgCompliance = Math.round(
+                (week.tssComplianceRate + week.complianceRate) / 2,
+              );
+              const isCompleted = week.weekNumber < blockData.currentWeek;
+              const isPlanned = week.weekNumber > blockData.currentWeek;
+
+              return (
+                <button
+                  key={week.weekNumber}
+                  onClick={() => setSelectedWeek(week.weekNumber)}
+                  className={`relative p-3 rounded-xl border-2 transition-all hover:scale-102 ${
+                    isSelected
+                      ? "border-teal bg-teal/10 scale-105"
+                      : "border-border bg-bg-card hover:border-teal/30"
+                  }`}
+                >
+                  {/* Current week pulse indicator */}
+                  {isCurrent && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-teal opacity-75 animate-ping" />
+                      <span className="absolute inline-flex rounded-full h-3 w-3 bg-teal" />
+                    </div>
+                  )}
+
+                  {/* Week Title & Badge */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                        week.weekType === "recovery"
+                          ? "bg-peach/20 text-peach"
+                          : week.weekType === "peak"
+                            ? "bg-orange-bright/20 text-orange-bright"
+                            : week.weekType === "build"
+                              ? "bg-orange/20 text-orange"
+                              : "bg-teal/20 text-teal"
+                      }`}
+                    >
+                      {week.weekType}
+                    </span>
+                  </div>
+
+                  {/* Compliance Bar */}
+                  <div className="mb-2">
+                    <div className="h-1.5 bg-bg-assistant rounded-full overflow-hidden border border-border/50">
+                      <div
+                        className={`h-full transition-all ${
+                          avgCompliance >= 90
+                            ? "bg-teal"
+                            : avgCompliance >= 70
+                              ? "bg-orange"
+                              : "bg-peach"
+                        }`}
+                        style={{ width: `${Math.min(avgCompliance, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status & Percentage */}
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-bold tabular-nums text-text">
+                      {avgCompliance}%
+                    </span>
+                    <span className="font-medium text-text/50">
+                      {isCompleted
+                        ? "✓ Done"
+                        : isCurrent
+                          ? "→ Current"
+                          : "○ Planned"}
+                    </span>
+                  </div>
+
+                  {/* Selected indicator arrow */}
+                  {isSelected && (
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
+                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-teal" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Split Content Body: Daily Schedule (Left) + Weekly Metrics (Right) */}
+        {currentWeekData && complianceWeekData && (
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Daily Schedule (2/3 width on desktop) */}
+              <div className="lg:col-span-2">
+                <h3 className="text-base font-bold text-text mb-4 flex items-center gap-2">
+                  <span>Daily Schedule</span>
+                  <span className="text-xs font-medium text-text/50 uppercase">
+                    (Week {selectedWeek})
+                  </span>
+                </h3>
+
+                <div className="space-y-2">
+                  {currentWeekData.days
+                    .filter((day) => day.date <= blockData.currentDay)
+                    .map((day) => {
+                      const isToday = day.date === blockData.currentDay;
+                      const sessionType =
+                        day.workout?.session_type ||
+                        day.workout?.agent_output?.sessionType ||
+                        "";
+
+                      return (
+                        <div
+                          key={day.date}
+                          className={`p-3 rounded-lg border transition-all ${
+                            isToday
+                              ? "border-teal bg-teal/5 ring-2 ring-teal/20"
+                              : day.completed
+                                ? "border-border bg-bg-assistant"
+                                : "border-dashed border-border/50 bg-bg-card"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            {/* Date & Activity Info */}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-bold text-text/70 uppercase">
+                                  {day.dayOfWeek}
+                                </span>
+                                <span className="text-xs font-medium text-text/50">
+                                  {new Date(day.date).toLocaleDateString(
+                                    "en-US",
+                                    { month: "short", day: "numeric" },
+                                  )}
+                                </span>
+                                {isToday && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal/20 text-teal">
+                                    Today
+                                  </span>
+                                )}
+                              </div>
+
+                              {day.workout && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-text">
+                                    {day.workout.duration_minutes || 0} min
+                                  </span>
+                                  <span className="text-xs text-text/50">
+                                    •
+                                  </span>
+                                  <span className="text-sm font-medium text-text capitalize">
+                                    {day.workout.sport || "Workout"}
+                                  </span>
+                                  {sessionType && (
+                                    <>
+                                      <span className="text-xs text-text/50">
+                                        •
+                                      </span>
+                                      <span
+                                        className={`text-xs font-semibold capitalize ${
+                                          sessionType === "key"
+                                            ? "text-orange-bright"
+                                            : sessionType === "endurance"
+                                              ? "text-teal"
+                                              : "text-peach"
+                                        }`}
+                                      >
+                                        {sessionType}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              {!day.workout && (
+                                <span className="text-sm text-text/40 italic">
+                                  Rest day
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Completion Status */}
+                            <div className="flex items-center gap-2">
+                              {day.completed ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="text-xs font-bold text-teal">
+                                    ✓ Done
+                                  </span>
+                                  {day.activity?.tss && (
+                                    <span className="text-[10px] text-text/50 tabular-nums">
+                                      {Math.round(day.activity.tss)} TSS
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                day.workout && (
+                                  <span className="text-xs font-medium text-text/40">
+                                    Pending
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Right Column: Weekly Metrics (1/3 width on desktop) */}
+              <div className="lg:col-span-1">
+                <h3 className="text-base font-bold text-text mb-4">
+                  Week {selectedWeek} Metrics
+                </h3>
+
+                {/* Target Metrics */}
+                <div className="space-y-3 mb-6">
+                  <div className="p-3 rounded-lg bg-bg-assistant border border-border">
+                    <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mb-1">
+                      Target TSS
+                    </p>
+                    <p className="text-3xl font-bold tabular-nums text-teal">
+                      {complianceWeekData.targetTss}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-bg-assistant border border-border">
+                    <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mb-1">
+                      Compliance Target
+                    </p>
+                    <p className="text-3xl font-bold tabular-nums text-orange-bright">
+                      {complianceWeekData.complianceRate}%
+                    </p>
+                  </div>
+
+                  {currentTsb !== null && (
+                    <div className="p-3 rounded-lg bg-bg-assistant border border-border">
+                      <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mb-1">
+                        Recovery Status (TSB)
+                      </p>
+                      <p
+                        className={`text-3xl font-bold tabular-nums ${
+                          currentTsb > 0
+                            ? "text-teal"
+                            : currentTsb < -25
+                              ? "text-orange-bright"
+                              : "text-text"
+                        }`}
+                      >
+                        {currentTsb > 0 ? "+" : ""}
+                        {currentTsb}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Compliance Rings */}
+                <div className="space-y-4">
+                  {/* Volume Compliance */}
+                  <div className="flex flex-col items-center p-4 rounded-lg bg-bg-assistant border border-border">
+                    <ComplianceRing
+                      actual={complianceWeekData.actualTss}
+                      target={complianceWeekData.targetTss}
+                      size={100}
+                      strokeWidth={10}
+                    />
+                    <div className="mt-3 text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-text/70 mb-1">
+                        Volume Compliance
+                      </p>
+                      <p className="text-xs font-semibold text-text tabular-nums">
+                        {Math.round(complianceWeekData.actualTss)} /{" "}
+                        {complianceWeekData.targetTss} TSS
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Workout Consistency */}
+                  <div className="flex flex-col items-center p-4 rounded-lg bg-bg-assistant border border-border">
+                    <ComplianceRing
+                      actual={complianceWeekData.workoutsCompleted}
+                      target={Math.max(
+                        complianceWeekData.workoutsPrescribed,
+                        1,
+                      )}
+                      size={100}
+                      strokeWidth={10}
+                    />
+                    <div className="mt-3 text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-text/70 mb-1">
+                        Workout Consistency
+                      </p>
+                      <p className="text-xs font-semibold text-text tabular-nums">
+                        {complianceWeekData.workoutsCompleted} /{" "}
+                        {complianceWeekData.workoutsPrescribed} Sessions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Week Notes (if any) */}
+                {complianceWeekData.notes && (
+                  <div className="mt-4 p-3 rounded-lg bg-bg-card border border-border">
+                    <p className="text-xs text-text/60 leading-relaxed italic">
+                      "{complianceWeekData.notes}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fitness Trajectory */}
       <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
-        <h3 className="text-[18px] font-semibold text-teal mb-4">
-          Fitness Trajectory (CTL)
+        `
+        <h3 className="text-[18px] font-bold text-teal mb-4">
+          Fitness & Form Trajectory
         </h3>
-        <div className="mb-6">
+        {/* Form Status Badge */}
+        {currentTsb !== null && (
+          <div className="mb-4">
+            <FormStatusBadge
+              tsb={currentTsb}
+              weekType={
+                fitnessData.checkpoints[fitnessData.checkpoints.length - 1]
+                  ?.weekType || "base"
+              }
+            />
+          </div>
+        )}
+        <div className="mb-2">
           <p className="text-xs sm:text-sm text-muted mb-4">
             Baseline CTL:{" "}
             <span className="font-bold text-text">
               {Math.round(fitnessData.baselineCtl * 100) / 100}
             </span>
-          </p>
-          <FitnessTrajectoryChart checkpoints={fitnessData.checkpoints} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WeeklyComplianceCard({ week }: { week: WeeklyReport }) {
-  const getBadgeStyle = () => {
-    if (week.complianceRate >= 85) {
-      return "bg-teal-100 text-teal-700 border-teal-200";
-    }
-    if (week.complianceRate >= 60) {
-      return "bg-amber-100 text-amber-700 border-amber-200";
-    }
-    return "bg-orange-100 text-orange-700 border-orange-200";
-  };
-
-  return (
-    <div className="border border-border rounded-lg p-4 bg-bg-assistant">
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <h4 className="font-bold text-text">
-            Week {week.weekNumber} —{" "}
-            <span className="capitalize">{week.weekType}</span>
-          </h4>
-          <p className="text-sm text-muted">
-            {week.workoutsCompleted}/{week.workoutsPrescribed} workouts
-            completed
-          </p>
-        </div>
-        <span
-          className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${getBadgeStyle()}`}
-        >
-          {week.complianceRate}%
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mb-3">
-        <div>
-          <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-muted">
-            Training Load
-          </p>
-          <p className="text-sm font-medium text-text">
-            {week.actualTss} / {week.targetTss} TSS
-            <span
-              className={`ml-2 text-xs font-semibold ${week.tssComplianceRate >= 90 && week.tssComplianceRate <= 110 ? "text-teal" : "text-orange-bright"}`}
-            >
-              ({week.tssComplianceRate}%)
-            </span>
-          </p>
-        </div>
-      </div>
-
-      <p className="text-sm text-muted italic">{week.notes}</p>
-    </div>
-  );
-}
-
-function FitnessCheckpointCard({
-  checkpoint,
-}: {
-  checkpoint: FitnessCheckpoint;
-}) {
-  const getTrendStyle = () => {
-    if (checkpoint.trend === "ahead" || checkpoint.trend === "on_track") {
-      return { color: "text-teal", bg: "bg-teal", border: "border-teal" };
-    }
-    if (checkpoint.trend === "behind") {
-      return { color: "text-orange", bg: "bg-peach", border: "border-peach" };
-    }
-    return {
-      color: "text-orange-bright",
-      bg: "bg-orange-bright",
-      border: "border-orange-bright",
-    };
-  };
-
-  const trendIcon = {
-    ahead: "↗",
-    on_track: "→",
-    behind: "↘",
-    stalled: "⊙",
-  }[checkpoint.trend];
-
-  const style = getTrendStyle();
-
-  return (
-    <div
-      className={`border-l-4 ${style.border} pl-4 pr-4 py-3 bg-bg-assistant rounded-r-lg`}
-    >
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-medium text-text">
-            Week {checkpoint.weekInBlock} — {checkpoint.weekType}
-          </p>
-          <p className="text-sm text-muted">
-            Expected:{" "}
-            <span className="tabular-nums font-semibold">
-              {checkpoint.expectedCtl}
-            </span>{" "}
-            CTL • Actual:{" "}
-            <span className="tabular-nums font-semibold">
-              {checkpoint.actualCtl}
-            </span>{" "}
-            CTL
-          </p>
-        </div>
-        <div className={`flex items-center gap-1 font-bold ${style.color}`}>
-          <span className="text-xl">{trendIcon}</span>
-          <span className="capitalize text-sm whitespace-nowrap">
-            {checkpoint.trend.replace("_", " ")}
-          </span>
-        </div>
-      </div>
-      <p className="text-sm text-muted mt-1">{checkpoint.note}</p>
-    </div>
-  );
-}
-
-function FitnessTrajectoryChart({
-  checkpoints,
-}: {
-  checkpoints: FitnessCheckpoint[];
-}) {
-  if (checkpoints.length === 0) {
-    return (
-      <div className="border border-border rounded-lg p-5 bg-bg-assistant text-center text-sm text-muted">
-        No fitness trajectory data available yet.
-      </div>
-    );
-  }
-
-  return (
-    <div className="border border-border rounded-lg p-5 bg-bg-assistant space-y-4">
-      {checkpoints.map((checkpoint) => {
-        const percentage =
-          checkpoint.expectedCtl > 0
-            ? Math.round((checkpoint.actualCtl / checkpoint.expectedCtl) * 100)
-            : 100;
-
-        const cappedPercentage = Math.min(percentage, 100);
-        const isBehind = percentage < 85;
-
-        const getBadgeStyle = () => {
-          if (checkpoint.weekType === "recovery") {
-            return "bg-teal-100 text-teal-700 border-teal-200";
-          }
-          if (checkpoint.weekType === "peak") {
-            return "bg-orange-100 text-orange-700 border-orange-200";
-          }
-          if (checkpoint.weekType === "build") {
-            return "bg-amber-100 text-amber-700 border-amber-200";
-          }
-          return "bg-teal-100 text-teal-700 border-teal-200"; // base
-        };
-
-        return (
-          <div key={checkpoint.weekInBlock} className="space-y-2">
-            {/* Week header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-text">
-                  Week {checkpoint.weekInBlock}
-                </span>
+            {currentTsb !== null && (
+              <>
+                {" · "}Current TSB:{" "}
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-bold border capitalize ${getBadgeStyle()}`}
+                  className={`font-bold ${currentTsb > 0 ? "text-teal" : currentTsb < -25 ? "text-orange-bright" : "text-text"}`}
                 >
-                  {checkpoint.weekType}
+                  {currentTsb > 0 ? "+" : ""}
+                  {currentTsb}
                 </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-lg sm:text-xl font-bold tabular-nums ${
-                    isBehind ? "text-orange-bright" : "text-teal"
-                  }`}
-                >
-                  {percentage}%
-                </span>
-                <span className="text-xs text-muted">of target</span>
-              </div>
-            </div>
-
-            {/* Progress bar */}
-            <div
-              role="progressbar"
-              aria-valuenow={cappedPercentage}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Week ${checkpoint.weekInBlock} CTL progress: ${percentage}% of target`}
-              className="relative h-3 bg-bg-user rounded-lg overflow-hidden border border-border"
-            >
-              {/* Actual progress */}
-              <div
-                className={`absolute inset-y-0 left-0 transition-all duration-500 ${
-                  isBehind
-                    ? "bg-gradient-to-r from-orange-bright to-peach"
-                    : "bg-teal"
-                }`}
-                style={{ width: `${cappedPercentage}%` }}
-              />
-
-              {/* CTL values overlay */}
-              {/* <div className="absolute inset-0 flex items-center justify-between px-2 sm:px-3">
-                <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow-md">
-                  {checkpoint.actualCtl} CTL
-                </span>
-                <span className="text-[10px] sm:text-xs font-semibold text-text">
-                  target: {checkpoint.expectedCtl}
-                </span>
-              </div> */}
-            </div>
-
-            <p className="text-xs text-muted  pl-1">
-              {checkpoint.actualCtl} / {checkpoint.expectedCtl} CTL
-            </p>
-
-            {/* Trend indicator */}
-            {checkpoint.note && (
-              <p className="text-xs text-muted italic pl-1">
-                {checkpoint.note}
-              </p>
+              </>
             )}
-          </div>
-        );
-      })}
+          </p>
+          <CTLBandedChart
+            checkpoints={fitnessData.checkpoints}
+            baselineCtl={fitnessData.baselineCtl}
+          />
+        </div>
+      </div>
     </div>
   );
 }

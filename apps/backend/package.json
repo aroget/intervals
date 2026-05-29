@@ -18,9 +18,11 @@
   "dependencies": {
     "@hono/node-server": "^2.0.3",
     "@supabase/supabase-js": "^2.106.0",
+    "@types/ws": "^8.18.1",
     "dotenv": "^17.4.2",
     "hono": "^4.12.21",
     "openai": "^6.38.0",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

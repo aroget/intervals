@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../../db/client.js";
+import { loadActivities } from "../../db/loaders.js";
 
 const athlete = new Hono();
 
@@ -66,6 +67,19 @@ athlete.delete("/:athleteId", async (c) => {
 
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ success: true });
+});
+
+/** GET /athlete/:athleteId/activities — get activities with optional days filter */
+athlete.get("/:athleteId/activities", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "30", 10);
+
+  try {
+    const activities = await loadActivities(athleteId, days);
+    return c.json({ activities });
+  } catch (error) {
+    return c.json({ error: String(error) }, 500);
+  }
 });
 
 export default athlete;

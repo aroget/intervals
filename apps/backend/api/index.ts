@@ -7,6 +7,7 @@ import analysisRoutes from "./routes/analysis.js";
 import athleteRoutes from "./routes/athlete.js";
 import syncRoutes from "./routes/sync.js";
 import workoutRoutes from "./routes/workout.js";
+import testRoutes from "./routes/test.js";
 
 const app = new Hono();
 
@@ -25,6 +26,7 @@ app.route("/analysis", analysisRoutes);
 app.route("/athlete", athleteRoutes);
 app.route("/sync", syncRoutes);
 app.route("/workout", workoutRoutes);
+app.route("/test", testRoutes);
 
 app.onError((err, c) => {
   console.error(err);

@@ -15,6 +15,9 @@ import { getPrescribedWorkouts } from "../tools/getPrescribedWorkouts.js";
 import { swapWorkouts } from "../tools/swapWorkouts.js";
 import { regenerateWorkout } from "../tools/regenerateWorkout.js";
 import { replanWeek } from "../tools/replanWeek.js";
+import { getRecoveryPatterns } from "../tools/getRecoveryPatterns.js";
+import { getReadinessPrediction } from "../tools/getReadinessPrediction.js";
+import { getComplianceFrictions } from "../tools/getComplianceFrictions.js";
 import { db } from "../../db/client.js";
 import type { AgentTool, Message } from "../llm/types.js";
 
@@ -285,6 +288,9 @@ export async function runChatAgent(params: {
     bindAthleteId(swapWorkouts, athleteId),
     bindAthleteId(regenerateWorkout, athleteId),
     bindAthleteId(replanWeek, athleteId),
+    bindAthleteId(getRecoveryPatterns, athleteId),
+    bindAthleteId(getReadinessPrediction, athleteId),
+    bindAthleteId(getComplianceFrictions, athleteId),
   ] as AgentTool[];
 
   const reply = await runWithTools(messages, tools, { temperature: 0.6 });
@@ -370,6 +376,9 @@ export async function runChatAgentStreaming(
     bindAthleteId(swapWorkouts, athleteId),
     bindAthleteId(regenerateWorkout, athleteId),
     bindAthleteId(replanWeek, athleteId),
+    bindAthleteId(getRecoveryPatterns, athleteId),
+    bindAthleteId(getReadinessPrediction, athleteId),
+    bindAthleteId(getComplianceFrictions, athleteId),
   ] as AgentTool[];
 
   const reply = await runWithToolsStreaming(

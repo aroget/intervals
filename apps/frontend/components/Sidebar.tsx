@@ -46,7 +46,7 @@ export function Sidebar() {
 
   const links = [
     { href: `/${locale}/dashboard`, label: t("dashboard") },
-    { href: `/${locale}/plan`, label: t("plan") },
+    { href: `/${locale}/analytics`, label: t("analytics") },
     { href: `/${locale}/workout/new`, label: t("newWorkout") },
     { href: `/${locale}/settings`, label: t("settings") },
   ];
