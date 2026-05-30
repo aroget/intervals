@@ -148,35 +148,62 @@ function WorkoutDetailModal({
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="bg-bg rounded-lg p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Duration</p>
-                  <p className="text-lg font-bold text-text mt-1">{day.workout.duration_min || '—'} {day.workout.duration_min ? 'min' : ''}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    Duration
+                  </p>
+                  <p className="text-lg font-bold text-text mt-1">
+                    {day.workout.duration_min || "—"}{" "}
+                    {day.workout.duration_min ? "min" : ""}
+                  </p>
                 </div>
                 <div className="bg-bg rounded-lg p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Sport</p>
-                  <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.sport || '—'}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    Sport
+                  </p>
+                  <p className="text-lg font-bold text-text mt-1 capitalize">
+                    {day.workout.sport || "—"}
+                  </p>
                 </div>
-                {(day.workout.agent_output?.targetTss || day.workout.target_tss) && (
+                {(day.workout.agent_output?.targetTss ||
+                  day.workout.target_tss) && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Target TSS</p>
-                    <p className="text-lg font-bold text-text mt-1">{Math.round(day.workout.agent_output?.targetTss || day.workout.target_tss)}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Target TSS
+                    </p>
+                    <p className="text-lg font-bold text-text mt-1">
+                      {Math.round(
+                        day.workout.agent_output?.targetTss ||
+                          day.workout.target_tss,
+                      )}
+                    </p>
                   </div>
                 )}
                 {day.workout.session_type && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Session Type</p>
-                    <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.session_type}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Session Type
+                    </p>
+                    <p className="text-lg font-bold text-text mt-1 capitalize">
+                      {day.workout.session_type}
+                    </p>
                   </div>
                 )}
                 {day.workout.intensity && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Intensity</p>
-                    <p className="text-lg font-bold text-text mt-1 capitalize">{day.workout.intensity}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Intensity
+                    </p>
+                    <p className="text-lg font-bold text-text mt-1 capitalize">
+                      {day.workout.intensity}
+                    </p>
                   </div>
                 )}
               </div>
               {day.workout.rationale && (
                 <div className="bg-bg rounded-lg p-4">
-                  <p className="text-xs text-text/70 leading-relaxed">{day.workout.rationale}</p>
+                  <p className="text-xs text-text/70 leading-relaxed">
+                    {day.workout.rationale}
+                  </p>
                 </div>
               )}
             </div>
@@ -192,7 +219,9 @@ function WorkoutDetailModal({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {day.activity.duration_secs && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Duration</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Duration
+                    </p>
                     <p className="text-lg font-bold text-teal mt-1">
                       {Math.round(day.activity.duration_secs / 60)} min
                     </p>
@@ -200,7 +229,9 @@ function WorkoutDetailModal({
                 )}
                 {day.activity.tss && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">TSS</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      TSS
+                    </p>
                     <p className="text-lg font-bold text-teal mt-1">
                       {Math.round(day.activity.tss)}
                     </p>
@@ -208,7 +239,9 @@ function WorkoutDetailModal({
                 )}
                 {day.activity.distance_m && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Distance</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Distance
+                    </p>
                     <p className="text-lg font-bold text-teal mt-1">
                       {day.activity.distance_m >= 1000
                         ? `${(day.activity.distance_m / 1000).toFixed(1)} km`
@@ -218,7 +251,9 @@ function WorkoutDetailModal({
                 )}
                 {day.activity.avg_hr && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Avg HR</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Avg HR
+                    </p>
                     <p className="text-lg font-bold text-text mt-1">
                       {Math.round(day.activity.avg_hr)} bpm
                     </p>
@@ -226,7 +261,9 @@ function WorkoutDetailModal({
                 )}
                 {day.activity.avg_power && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Avg Power</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Avg Power
+                    </p>
                     <p className="text-lg font-bold text-text mt-1">
                       {Math.round(day.activity.avg_power)} W
                     </p>
@@ -234,7 +271,9 @@ function WorkoutDetailModal({
                 )}
                 {day.activity.rpe && (
                   <div className="bg-bg rounded-lg p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">RPE</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      RPE
+                    </p>
                     <p className="text-lg font-bold text-text mt-1">
                       {day.activity.rpe}/10
                     </p>
@@ -283,7 +322,9 @@ export default function ComplianceMetrics({
   const [currentTsb, setCurrentTsb] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
-  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<Day | null>(null);
+  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<Day | null>(
+    null,
+  );
 
   useEffect(() => {
     fetchData();
@@ -392,262 +433,131 @@ export default function ComplianceMetrics({
       )}
 
       <div className="space-y-6">
-      {/* Unified Training Block & Schedule Card */}
-      <div className="bg-bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-        {/* Header: Block Title + Overall Stats */}
-        <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-teal/5 to-transparent">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            {/* Left: Block Title & Dates */}
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-teal mb-2">
-                Training Block
-              </h2>
-              <p className="text-sm text-text/60 font-medium">
-                {blockData.startDate} → {blockData.endDate}
-              </p>
-            </div>
-
-            {/* Right: Overall Block Stats */}
-            <div className="flex gap-4 sm:gap-6">
-              <div className="text-center">
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
-                  {complianceData.overallCompliance.complianceRate}%
-                </p>
-                <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
-                  Total Compliance
+        {/* Unified Training Block & Schedule Card */}
+        <div className="bg-bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          {/* Header: Block Title + Overall Stats */}
+          <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-teal/5 to-transparent">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              {/* Left: Block Title & Dates */}
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-teal mb-2">
+                  Training Block
+                </h2>
+                <p className="text-sm text-text/60 font-medium">
+                  {blockData.startDate} → {blockData.endDate}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-orange-bright">
-                  {complianceData.overallCompliance.workoutsCompleted}
-                  <span className="text-lg text-text/40">
-                    /{complianceData.overallCompliance.workoutsPrescribed}
-                  </span>
-                </p>
-                <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
-                  Workouts Done
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Navigation: Interactive Week Progress Bar */}
-        <div className="p-4 sm:p-6 border-b border-border bg-bg-assistant">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-            {complianceData.weeklyReports.map((week: WeeklyReport) => {
-              const isCurrent = week.weekNumber === blockData.currentWeek;
-              const isSelected = week.weekNumber === selectedWeek;
-              const avgCompliance = Math.round(
-                (week.tssComplianceRate + week.complianceRate) / 2,
-              );
-              const isCompleted = week.weekNumber < blockData.currentWeek;
-              const isPlanned = week.weekNumber > blockData.currentWeek;
-
-              return (
-                <button
-                  key={week.weekNumber}
-                  onClick={() => setSelectedWeek(week.weekNumber)}
-                  className={`relative p-3 rounded-xl border-2 transition-all hover:scale-102 ${
-                    isSelected
-                      ? "border-teal bg-teal/10 scale-105"
-                      : "border-border bg-bg-card hover:border-teal/30"
-                  }`}
-                >
-                  {/* Current week pulse indicator */}
-                  {isCurrent && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3">
-                      <span className="absolute inline-flex h-full w-full rounded-full bg-teal opacity-75 animate-ping" />
-                      <span className="absolute inline-flex rounded-full h-3 w-3 bg-teal" />
-                    </div>
-                  )}
-
-                  {/* Week Title & Badge */}
-                  <div className="flex items-center justify-between mb-2">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
-                        week.weekType === "recovery"
-                          ? "bg-peach/20 text-peach"
-                          : week.weekType === "peak"
-                            ? "bg-orange-bright/20 text-orange-bright"
-                            : week.weekType === "build"
-                              ? "bg-orange/20 text-orange"
-                              : "bg-teal/20 text-teal"
-                      }`}
-                    >
-                      {week.weekType}
+              {/* Right: Overall Block Stats */}
+              <div className="flex gap-4 sm:gap-6">
+                <div className="text-center">
+                  <p className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
+                    {complianceData.overallCompliance.complianceRate}%
+                  </p>
+                  <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
+                    Total Compliance
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl sm:text-3xl font-bold tabular-nums text-orange-bright">
+                    {complianceData.overallCompliance.workoutsCompleted}
+                    <span className="text-lg text-text/40">
+                      /{complianceData.overallCompliance.workoutsPrescribed}
                     </span>
-                  </div>
-
-                  {/* Compliance Bar */}
-                  <div className="mb-2">
-                    <div className="h-1.5 bg-bg-assistant rounded-full overflow-hidden border border-border/50">
-                      <div
-                        className={`h-full transition-all ${
-                          avgCompliance >= 90
-                            ? "bg-teal"
-                            : avgCompliance >= 70
-                              ? "bg-orange"
-                              : "bg-peach"
-                        }`}
-                        style={{ width: `${Math.min(avgCompliance, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Status & Percentage */}
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold tabular-nums text-text">
-                      {avgCompliance}%
-                    </span>
-                    <span className="font-medium text-text/50">
-                      {isCompleted
-                        ? "✓ Done"
-                        : isCurrent
-                          ? "→ Current"
-                          : "○ Planned"}
-                    </span>
-                  </div>
-
-                  {/* Selected indicator arrow */}
-                  {isSelected && (
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
-                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-teal" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Split Content Body: Daily Schedule (Left) + Weekly Metrics (Right) */}
-        {currentWeekData && complianceWeekData && (
-          <div className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column: Daily Schedule (2/3 width on desktop) */}
-              <div className="lg:col-span-2">
-                <h3 className="text-base font-bold text-text mb-4 flex items-center gap-2">
-                  <span>Daily Schedule</span>
-                  <span className="text-xs font-medium text-text/50 uppercase">
-                    (Week {selectedWeek})
-                  </span>
-                </h3>
-
-                <div className="space-y-2">
-                  {currentWeekData.days
-                    .filter((day) => day.date <= blockData.currentDay)
-                    .map((day) => {
-                      const isToday = day.date === blockData.currentDay;
-                      const sessionType =
-                        day.workout?.session_type ||
-                        day.workout?.agent_output?.sessionType ||
-                        "";
-
-                      return (
-                        <button
-                          key={day.date}
-                          onClick={() => {
-                            if (day.completed && day.activity) {
-                              setSelectedWorkoutDay(day);
-                            }
-                          }}
-                          disabled={!day.completed || !day.activity}
-                          className={`w-full text-left p-3 rounded-lg border transition-all ${
-                            isToday
-                              ? "border-teal bg-teal/5 ring-2 ring-teal/20"
-                              : day.completed
-                                ? "border-border bg-bg-assistant hover:border-teal cursor-pointer"
-                                : "border-dashed border-border/50 bg-bg-card"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            {/* Date & Activity Info */}
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold text-text/70 uppercase">
-                                  {day.dayOfWeek}
-                                </span>
-                                <span className="text-xs font-medium text-text/50">
-                                  {new Date(day.date).toLocaleDateString(
-                                    "en-US",
-                                    { month: "short", day: "numeric" },
-                                  )}
-                                </span>
-                                {isToday && (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal/20 text-teal">
-                                    Today
-                                  </span>
-                                )}
-                              </div>
-
-                              {day.workout && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-text">
-                                    {day.workout.duration_min || 0} min
-                                  </span>
-                                  <span className="text-xs text-text/50">
-                                    •
-                                  </span>
-                                  <span className="text-sm font-medium text-text capitalize">
-                                    {day.workout.sport || "Workout"}
-                                  </span>
-                                  {sessionType && (
-                                    <>
-                                      <span className="text-xs text-text/50">
-                                        •
-                                      </span>
-                                      <span
-                                        className={`text-xs font-semibold capitalize ${
-                                          sessionType === "key"
-                                            ? "text-orange-bright"
-                                            : sessionType === "endurance"
-                                              ? "text-teal"
-                                              : "text-peach"
-                                        }`}
-                                      >
-                                        {sessionType}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-
-                              {!day.workout && (
-                                <span className="text-sm text-text/40 italic">
-                                  Rest day
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Completion Status */}
-                            <div className="flex items-center gap-2">
-                              {day.completed ? (
-                                <div className="flex flex-col items-end">
-                                  <span className="text-xs font-bold text-teal">
-                                    ✓ Done
-                                  </span>
-                                  {day.activity?.tss && (
-                                    <span className="text-[10px] text-text/50 tabular-nums">
-                                      {Math.round(day.activity.tss)} TSS
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                day.workout && (
-                                  <span className="text-xs font-medium text-text/40">
-                                    Pending
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                  </p>
+                  <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mt-1">
+                    Workouts Done
+                  </p>
                 </div>
               </div>
+            </div>
+          </div>
 
+          {/* Navigation: Interactive Week Progress Bar */}
+          <div className="p-4 sm:p-6 border-b border-border bg-bg-assistant">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              {complianceData.weeklyReports.map((week: WeeklyReport) => {
+                const isCurrent = week.weekNumber === blockData.currentWeek;
+                const isSelected = week.weekNumber === selectedWeek;
+                const avgCompliance = Math.round(
+                  (week.tssComplianceRate + week.complianceRate) / 2,
+                );
+                const isCompleted = week.weekNumber < blockData.currentWeek;
+                const isPlanned = week.weekNumber > blockData.currentWeek;
+
+                return (
+                  <button
+                    key={week.weekNumber}
+                    onClick={() => setSelectedWeek(week.weekNumber)}
+                    className={`relative p-3 rounded-xl border-2 transition-all hover:scale-102 ${
+                      isSelected
+                        ? "border-teal bg-teal/10 scale-105"
+                        : "border-border bg-bg-card hover:border-teal/30"
+                    }`}
+                  >
+                    {/* Current week pulse indicator */}
+                    {isCurrent && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-teal opacity-75 animate-ping" />
+                        <span className="absolute inline-flex rounded-full h-3 w-3 bg-teal" />
+                      </div>
+                    )}
+
+                    {/* Week Title & Badge */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                          week.weekType === "recovery"
+                            ? "bg-peach/20 text-peach"
+                            : week.weekType === "peak"
+                              ? "bg-orange-bright/20 text-orange-bright"
+                              : week.weekType === "build"
+                                ? "bg-orange/20 text-orange"
+                                : "bg-teal/20 text-teal"
+                        }`}
+                      >
+                        {week.weekType}
+                      </span>
+                    </div>
+
+                    {/* Compliance Bar */}
+                    <div className="mb-2">
+                      <div className="h-1.5 bg-bg-assistant rounded-full overflow-hidden border border-border/50">
+                        <div
+                          className={`h-full transition-all ${
+                            avgCompliance >= 90
+                              ? "bg-teal"
+                              : avgCompliance >= 70
+                                ? "bg-orange"
+                                : "bg-peach"
+                          }`}
+                          style={{ width: `${Math.min(avgCompliance, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Status & Percentage */}
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold tabular-nums text-text">
+                        {avgCompliance}%
+                      </span>
+                      <span className="font-medium text-text/50">
+                        {isCompleted
+                          ? "✓ Done"
+                          : isCurrent
+                            ? "→ Current"
+                            : "○ Planned"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Split Content Body: Daily Schedule (Left) + Weekly Metrics (Right) */}
+          {currentWeekData && complianceWeekData && (
+            <div className="p-4 sm:p-6">
               {/* Right Column: Weekly Metrics (1/3 width on desktop) */}
               <div className="lg:col-span-1">
                 <h3 className="text-base font-bold text-text mb-4">
@@ -655,7 +565,7 @@ export default function ComplianceMetrics({
                 </h3>
 
                 {/* Target Metrics */}
-                <div className="space-y-3 mb-6">
+                <div className="mb-6 grid grid-cols-3 gap-4">
                   <div className="p-3 rounded-lg bg-bg-assistant border border-border">
                     <p className="text-[10px] font-bold tracking-wider uppercase text-text/60 mb-1">
                       Target TSS
@@ -696,7 +606,7 @@ export default function ComplianceMetrics({
                 </div>
 
                 {/* Compliance Rings */}
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 ">
                   {/* Volume Compliance */}
                   <div className="flex flex-col items-center p-4 rounded-lg bg-bg-assistant border border-border">
                     <ComplianceRing
@@ -741,60 +651,183 @@ export default function ComplianceMetrics({
 
                 {/* Week Notes (if any) */}
                 {complianceWeekData.notes && (
-                  <div className="mt-4 p-3 rounded-lg bg-bg-card border border-border">
+                  <div className="mt-4 mb-4 p-3 rounded-lg bg-bg-card border border-border">
                     <p className="text-xs text-text/60 leading-relaxed italic">
                       "{complianceWeekData.notes}"
                     </p>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-      </div>
+              <div className="grid grid-cols-1 p-t-6">
+                {/* Left Column: Daily Schedule (2/3 width on desktop) */}
+                <div className="lg:col-span-2">
+                  <h3 className="text-base font-bold text-text mb-4 flex items-center gap-2">
+                    <span>Daily Schedule</span>
+                    <span className="text-xs font-medium text-text/50 uppercase">
+                      (Week {selectedWeek})
+                    </span>
+                  </h3>
 
-      {/* Fitness Trajectory */}
-      <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
-        `
-        <h3 className="text-[18px] font-bold text-teal mb-4">
-          Fitness & Form Trajectory
-        </h3>
-        {/* Form Status Badge */}
-        {currentTsb !== null && (
-          <div className="mb-4">
-            <FormStatusBadge
-              tsb={currentTsb}
-              weekType={
-                fitnessData.checkpoints[fitnessData.checkpoints.length - 1]
-                  ?.weekType || "base"
-              }
+                  <div className="space-y-2">
+                    {currentWeekData.days
+                      .filter((day) => day.date <= blockData.currentDay)
+                      .map((day) => {
+                        const isToday = day.date === blockData.currentDay;
+                        const sessionType =
+                          day.workout?.session_type ||
+                          day.workout?.agent_output?.sessionType ||
+                          "";
+
+                        return (
+                          <button
+                            key={day.date}
+                            onClick={() => {
+                              if (day.completed && day.activity) {
+                                setSelectedWorkoutDay(day);
+                              }
+                            }}
+                            disabled={!day.completed || !day.activity}
+                            className={`w-full text-left p-3 rounded-lg border transition-all ${
+                              isToday
+                                ? "border-teal bg-teal/5 ring-2 ring-teal/20"
+                                : day.completed
+                                  ? "border-border bg-bg-assistant hover:border-teal cursor-pointer"
+                                  : "border-dashed border-border/50 bg-bg-card"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              {/* Date & Activity Info */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-bold text-text/70 uppercase">
+                                    {day.dayOfWeek}
+                                  </span>
+                                  <span className="text-xs font-medium text-text/50">
+                                    {new Date(day.date).toLocaleDateString(
+                                      "en-US",
+                                      { month: "short", day: "numeric" },
+                                    )}
+                                  </span>
+                                  {isToday && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal/20 text-teal">
+                                      Today
+                                    </span>
+                                  )}
+                                </div>
+
+                                {day.workout && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-text">
+                                      {day.workout.duration_min || 0} min
+                                    </span>
+                                    <span className="text-xs text-text/50">
+                                      •
+                                    </span>
+                                    <span className="text-sm font-medium text-text capitalize">
+                                      {day.workout.sport || "Workout"}
+                                    </span>
+                                    {sessionType && (
+                                      <>
+                                        <span className="text-xs text-text/50">
+                                          •
+                                        </span>
+                                        <span
+                                          className={`text-xs font-semibold capitalize ${
+                                            sessionType === "key"
+                                              ? "text-orange-bright"
+                                              : sessionType === "endurance"
+                                                ? "text-teal"
+                                                : "text-peach"
+                                          }`}
+                                        >
+                                          {sessionType}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+
+                                {!day.workout && (
+                                  <span className="text-sm text-text/40 italic">
+                                    Rest day
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Completion Status */}
+                              <div className="flex items-center gap-2">
+                                {day.completed ? (
+                                  <div className="flex flex-col items-end">
+                                    <span className="text-xs font-bold text-teal">
+                                      ✓ Done
+                                    </span>
+                                    {day.activity?.tss && (
+                                      <span className="text-[10px] text-text/50 tabular-nums">
+                                        {Math.round(day.activity.tss)} TSS
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  day.workout && (
+                                    <span className="text-xs font-medium text-text/40">
+                                      Pending
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Fitness Trajectory */}
+        <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
+          `
+          <h3 className="text-[18px] font-bold text-teal mb-4">
+            Fitness & Form Trajectory
+          </h3>
+          {/* Form Status Badge */}
+          {currentTsb !== null && (
+            <div className="mb-4">
+              <FormStatusBadge
+                tsb={currentTsb}
+                weekType={
+                  fitnessData.checkpoints[fitnessData.checkpoints.length - 1]
+                    ?.weekType || "base"
+                }
+              />
+            </div>
+          )}
+          <div className="mb-2">
+            <p className="text-xs sm:text-sm text-muted mb-4">
+              Baseline CTL:{" "}
+              <span className="font-bold text-text">
+                {Math.round(fitnessData.baselineCtl * 100) / 100}
+              </span>
+              {currentTsb !== null && (
+                <>
+                  {" · "}Current TSB:{" "}
+                  <span
+                    className={`font-bold ${currentTsb > 0 ? "text-teal" : currentTsb < -25 ? "text-orange-bright" : "text-text"}`}
+                  >
+                    {currentTsb > 0 ? "+" : ""}
+                    {currentTsb}
+                  </span>
+                </>
+              )}
+            </p>
+            <CTLBandedChart
+              checkpoints={fitnessData.checkpoints}
+              baselineCtl={fitnessData.baselineCtl}
             />
           </div>
-        )}
-        <div className="mb-2">
-          <p className="text-xs sm:text-sm text-muted mb-4">
-            Baseline CTL:{" "}
-            <span className="font-bold text-text">
-              {Math.round(fitnessData.baselineCtl * 100) / 100}
-            </span>
-            {currentTsb !== null && (
-              <>
-                {" · "}Current TSB:{" "}
-                <span
-                  className={`font-bold ${currentTsb > 0 ? "text-teal" : currentTsb < -25 ? "text-orange-bright" : "text-text"}`}
-                >
-                  {currentTsb > 0 ? "+" : ""}
-                  {currentTsb}
-                </span>
-              </>
-            )}
-          </p>
-          <CTLBandedChart
-            checkpoints={fitnessData.checkpoints}
-            baselineCtl={fitnessData.baselineCtl}
-          />
         </div>
-      </div>
       </div>
     </>
   );

@@ -481,11 +481,19 @@ Write only the analysis text, no headers or labels.`;
   });
 
   // Cache it
-  await db
+  const { error: updateError } = await db
     .from("activities")
     .update({ post_workout_analysis: analysisText })
     .eq("id", activityId);
 
+  if (updateError) {
+    console.error("[ERROR] Failed to cache analysis:", updateError);
+    console.error("[ERROR] Activity ID:", activityId);
+  }
+  console.log(
+    "[SUCCESS] Analysis generated and cached for activity:",
+    activityId,
+  );
   return c.json({ analysis: analysisText });
 });
 
