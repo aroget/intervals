@@ -7,6 +7,7 @@ const monorepoRoot = path.join(__dirname, "../../");
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: monorepoRoot,
+  reactStrictMode: false, // Disable to prevent duplicate API calls in dev
 
   turbopack: {
     // Points to the folder containing your pnpm-workspace.yaml (two levels up)

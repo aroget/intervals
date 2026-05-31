@@ -262,13 +262,15 @@ export async function runWithToolsStreaming(
     const choice = response.choices[0];
     const assistantMsg = choice.message;
 
-    // No more tool calls — stream the final generation
-    if (choice.finish_reason === "stop" || !assistantMsg.tool_calls?.length) {
-      // Use the already-obtained content (avoid a duplicate LLM call).
-      // Emit it as one chunk so the client unblocks immediately.
+    // If no tool calls, we should have the final text response - stream it
+    if (!assistantMsg.tool_calls?.length) {
       const text = assistantMsg.content ?? "";
-      onChunk(text);
-      return text;
+      if (text) {
+        onChunk(text);
+        return text;
+      }
+
+      break;
     }
 
     // Tool-calling round — emit status then execute in parallel
@@ -321,19 +323,60 @@ export async function runWithToolsStreaming(
     for (const result of toolResults) {
       history.push({ role: "tool", ...result });
     }
+
+    console.log(
+      `[runWithToolsStreaming] Added ${toolResults.length} tool results to history, new length: ${history.length}`,
+    );
+
+    // After adding tool results, we MUST continue the loop to get the model's response
+    // to those results. Do not break here - let the loop continue naturally.
   }
 
-  // Fallback — force a final text generation with no more tool calls
-  const fallback = await client.chat.completions.create({
-    model: getModel(),
-    messages: history,
-    tool_choice: "none",
-    temperature: options.temperature ?? 0.3,
-    stream: false,
-  });
-  const text = fallback.choices[0]?.message?.content ?? "";
-  onChunk(text);
-  return text;
+  // If we exit the loop (hit MAX_TOOL_ROUNDS), make a final streaming call
+  // to get a text response based on all the tool results.
+  // IMPORTANT: Don't pass tools at all - this forces the model to generate text.
+  console.log(
+    `[runWithToolsStreaming] Exited loop, making final streaming call. History length: ${history.length}`,
+  );
+
+  try {
+    const stream = await client.chat.completions.create({
+      model: getModel(),
+      messages: history,
+      // No tools parameter at all - forces text generation
+      temperature: options.temperature ?? 0.3,
+      stream: true,
+    });
+
+    let fullText = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content ?? "";
+      if (delta) {
+        fullText += delta;
+        onChunk(delta);
+      }
+    }
+
+    console.log(
+      `[runWithToolsStreaming] Final streaming complete, generated ${fullText.length} characters`,
+    );
+
+    if (!fullText) {
+      console.error(
+        "[runWithToolsStreaming] No text generated in final call. History length:",
+        history.length,
+      );
+      return "I apologize, but I wasn't able to generate a response. Please try again.";
+    }
+
+    return fullText;
+  } catch (err) {
+    console.error(
+      "[runWithToolsStreaming] Error in final streaming call:",
+      err,
+    );
+    throw err;
+  }
 }
 
 /**
