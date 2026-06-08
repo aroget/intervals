@@ -62,7 +62,12 @@ workout.post("/:athleteId/generate", async (c) => {
   if (existingAnalysis?.agent_output) {
     recovery = existingAnalysis.agent_output as typeof recovery;
   } else {
-    recovery = await runRecoveryAgent(metrics, today);
+    recovery = await runRecoveryAgent(
+      metrics,
+      today,
+      null,
+      profile.coachingNotes,
+    );
   }
 
   const recentActivities = activities.slice(-14);

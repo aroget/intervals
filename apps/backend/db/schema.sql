@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS athlete_profiles (
   weekly_max_hours JSONB DEFAULT '{}',           -- { "monday": 1, "tuesday": 2, ... }
   preferred_metrics TEXT[] DEFAULT '{}',
   cycle_start_date DATE,
+  coaching_notes TEXT,                           -- Custom instructions for AI coach
+  preferred_theme TEXT DEFAULT 'system',         -- Theme preference: 'light', 'dark', or 'system'
   ftp           INTEGER,                         -- Cycling FTP in watts
   running_threshold_pace INTEGER,               -- Running threshold pace in seconds per km
   lthr          INTEGER,                         -- Lactate Threshold Heart Rate in bpm
@@ -22,6 +24,8 @@ CREATE TABLE IF NOT EXISTS athlete_profiles (
 );
 
 -- Migration (run if table already exists):
+-- ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS coaching_notes TEXT;
+-- ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS preferred_theme TEXT DEFAULT 'system';
 -- ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS ftp INTEGER;
 -- ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS running_threshold_pace INTEGER;
 -- ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS lthr INTEGER;

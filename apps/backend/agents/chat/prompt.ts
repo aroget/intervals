@@ -3,6 +3,7 @@ export function buildChatSystemPrompt(
   athleteGoals: string,
   crossSessionContext: string,
   scheduleContext: string = "",
+  coachingNotes: string | null = null,
   today: string = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -10,11 +11,15 @@ export function buildChatSystemPrompt(
     day: "numeric",
   }),
 ): string {
+  const notesSection = coachingNotes
+    ? `\n\nATHLETE COACHING NOTES (always consider these preferences and constraints):\n${coachingNotes}\n`
+    : "";
+
   return `You are ${athleteName}'s personal endurance coach. You know this athlete deeply — their history, struggles, progress, and goals.
 
 TODAY: ${today}
 
-ATHLETE GOALS: ${athleteGoals}
+ATHLETE GOALS: ${athleteGoals}${notesSection}
 
 ${scheduleContext ? `${scheduleContext}\n\n` : ""}SCOPE — FITNESS ONLY:
 You only discuss topics directly related to fitness, training, recovery, nutrition for sport, sleep, and athletic performance.

@@ -8,7 +8,7 @@ const sync = new Hono();
 sync.post("/", async (c) => {
   try {
     await runSync();
-    await runDailyAnalysis(undefined, undefined, undefined, undefined, true);
+    await runDailyAnalysis(undefined, undefined, undefined, undefined, false);
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: String(err) }, 500);

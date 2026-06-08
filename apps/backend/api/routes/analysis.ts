@@ -225,9 +225,10 @@ analysis.get("/:athleteId/block-history", async (c) => {
   return c.json({ blocks });
 });
 
-/** GET /analysis/:athleteId/training-load-history — TSS per week for last 16 weeks */
+/** GET /analysis/:athleteId/training-load-history — TSS per week for last N weeks */
 analysis.get("/:athleteId/training-load-history", async (c) => {
   const athleteId = c.req.param("athleteId");
+  const weeksCount = parseInt(c.req.query("weeks") ?? "12", 10);
 
   // Get athlete profile for cycle start
   const { data: profile } = await db
@@ -236,9 +237,9 @@ analysis.get("/:athleteId/training-load-history", async (c) => {
     .eq("athlete_id", athleteId)
     .single();
 
-  // Get activities from last 16 weeks
+  // Get activities from last N weeks
   const since = new Date();
-  since.setDate(since.getDate() - 16 * 7);
+  since.setDate(since.getDate() - weeksCount * 7);
 
   const { data: activities } = await db
     .from("activities")
@@ -366,6 +367,391 @@ analysis.get("/:athleteId/compliance-frictions", async (c) => {
   const frictions = detectAllComplianceFrictions(workouts, activities);
 
   return c.json({ frictions });
+});
+
+/** GET /analysis/:athleteId/recovery-readiness-chart — daily readiness + TSS for last N days */
+analysis.get("/:athleteId/recovery-readiness-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "30", 10);
+
+  const profile = await loadAthleteProfile(athleteId);
+  if (!profile.cycleStartDate) {
+    return c.json({ error: "Cycle start date not set" }, 400);
+  }
+
+  const [wellness, activities, { data: analyses }] = await Promise.all([
+    loadWellness(athleteId, days),
+    loadActivities(athleteId, days),
+    db
+      .from("daily_analyses")
+      .select("analysis_date, readiness_score")
+      .eq("athlete_id", athleteId)
+      .gte(
+        "analysis_date",
+        new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10),
+      )
+      .order("analysis_date", { ascending: true }),
+  ]);
+
+  // Build a map of date -> readiness score
+  const readinessMap = new Map<string, number>();
+  (analyses ?? []).forEach((a) => {
+    readinessMap.set(a.analysis_date, a.readiness_score);
+  });
+
+  // Build a map of date -> TSS
+  const tssMap = new Map<string, number>();
+  activities.forEach((a) => {
+    const existing = tssMap.get(a.activityDate) ?? 0;
+    tssMap.set(a.activityDate, existing + (a.tss ?? 0));
+  });
+
+  // Get all dates in the range
+  const data: {
+    date: string;
+    readinessScore: number | null;
+    tss: number;
+    hrvSevenDayAvg: number | null;
+    rhrSevenDayAvg: number | null;
+    sleepScoreSevenDayAvg: number | null;
+  }[] = [];
+
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - (days - 1) * 86_400_000);
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+
+    // Calculate 7-day averages for this date
+    const last7Days = wellness.filter((w) => {
+      const wDate = new Date(w.logDate);
+      const diffDays = Math.floor((d.getTime() - wDate.getTime()) / 86_400_000);
+      return diffDays >= 0 && diffDays < 7;
+    });
+
+    const hrvAvg =
+      last7Days.length > 0
+        ? last7Days.reduce((sum, w) => sum + (w.hrv ?? w.hrvScore ?? 0), 0) /
+          last7Days.length
+        : null;
+
+    const rhrAvg =
+      last7Days.length > 0
+        ? last7Days.reduce((sum, w) => sum + (w.rhr ?? 0), 0) /
+          last7Days.filter((w) => w.rhr).length
+        : null;
+
+    const sleepAvg =
+      last7Days.length > 0
+        ? last7Days.reduce((sum, w) => sum + (w.sleepScore ?? 0), 0) /
+          last7Days.filter((w) => w.sleepScore).length
+        : null;
+
+    data.push({
+      date: dateStr,
+      readinessScore: readinessMap.get(dateStr) ?? null,
+      tss: tssMap.get(dateStr) ?? 0,
+      hrvSevenDayAvg: hrvAvg,
+      rhrSevenDayAvg: rhrAvg,
+      sleepScoreSevenDayAvg: sleepAvg,
+    });
+  }
+
+  return c.json({ data });
+});
+
+/** GET /analysis/:athleteId/training-stress-balance — ATL/CTL/TSB for last N days */
+analysis.get("/:athleteId/training-stress-balance", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "60", 10);
+
+  const activities = await loadActivities(athleteId, days + 42); // Extra for CTL calculation
+
+  // Build daily TSS map
+  const dailyTssMap = new Map<string, number>();
+  activities.forEach((a) => {
+    const existing = dailyTssMap.get(a.activityDate) ?? 0;
+    dailyTssMap.set(a.activityDate, existing + (a.tss ?? 0));
+  });
+
+  // Get date range
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - (days - 1) * 86_400_000);
+
+  const data: {
+    date: string;
+    tss: number;
+    atl: number;
+    ctl: number;
+    tsb: number;
+  }[] = [];
+
+  let atl = 0;
+  let ctl = 0;
+
+  // Calculate ATL (7-day exponential moving average) and CTL (42-day EMA)
+  const atlDecay = 2 / (7 + 1);
+  const ctlDecay = 2 / (42 + 1);
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const tss = dailyTssMap.get(dateStr) ?? 0;
+
+    // Update ATL and CTL with exponential moving average
+    atl = atl + atlDecay * (tss - atl);
+    ctl = ctl + ctlDecay * (tss - ctl);
+
+    const tsb = ctl - atl;
+
+    data.push({
+      date: dateStr,
+      tss,
+      atl: Math.round(atl * 10) / 10,
+      ctl: Math.round(ctl * 10) / 10,
+      tsb: Math.round(tsb * 10) / 10,
+    });
+  }
+
+  return c.json({ data });
+});
+
+/** GET /analysis/:athleteId/block-effectiveness-chart — current block effectiveness metrics */
+analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+
+  const profile = await loadAthleteProfile(athleteId);
+  if (!profile.cycleStartDate) {
+    return c.json({ error: "Cycle start date not set" }, 400);
+  }
+
+  const activities = await loadActivities(athleteId, 90);
+
+  // Get current block boundaries
+  const cycleStart = new Date(profile.cycleStartDate);
+  const today = new Date();
+  const daysSinceStart = Math.floor(
+    (today.getTime() - cycleStart.getTime()) / 86_400_000,
+  );
+  const currentBlockStart = new Date(cycleStart);
+  currentBlockStart.setDate(
+    cycleStart.getDate() + Math.floor(daysSinceStart / 28) * 28,
+  );
+  const blockStartStr = currentBlockStart.toISOString().slice(0, 10);
+  const blockEndDate = new Date(currentBlockStart);
+  blockEndDate.setDate(currentBlockStart.getDate() + 27);
+  const blockEndStr = blockEndDate.toISOString().slice(0, 10);
+
+  // Get baseline CTL (from last activity before block)
+  const preBlockActivities = activities.filter(
+    (a) => a.activityDate < blockStartStr,
+  );
+  const baselineCtl =
+    preBlockActivities[preBlockActivities.length - 1]?.ctl ?? 70;
+
+  // Get block activities
+  const blockActivities = activities.filter(
+    (a) => a.activityDate >= blockStartStr && a.activityDate <= blockEndStr,
+  );
+
+  const checkpoints = analyzeFitnessTrajectory(
+    blockStartStr,
+    baselineCtl,
+    blockActivities,
+  );
+
+  const blockEndCtl =
+    checkpoints[checkpoints.length - 1]?.actualCtl ?? baselineCtl;
+
+  // Calculate total block TSS
+  const totalBlockTss = blockActivities.reduce(
+    (sum, a) => sum + (a.tss ?? 0),
+    0,
+  );
+
+  // Calculate intensity distribution (zones based on IF)
+  // If IF is null/0, estimate from TSS and duration
+  const zoneDistribution = {
+    zone1: 0, // IF < 0.55 (recovery)
+    zone2: 0, // IF 0.55-0.75 (endurance)
+    zone3: 0, // IF 0.75-0.85 (tempo)
+    zone4: 0, // IF 0.85-0.95 (threshold)
+    zone5: 0, // IF > 0.95 (vo2max/anaerobic)
+  };
+
+  blockActivities.forEach((a) => {
+    const duration = (a.durationSecs ?? 0) / 3600; // hours
+    if (duration === 0) return;
+
+    let intensityFactor = a.intensityFactor ?? 0;
+
+    // If IF is missing/zero but we have TSS, estimate IF from TSS
+    // TSS = (sec × NP × IF) / (FTP × 3600) × 100
+    // For rough estimation: IF ≈ sqrt(TSS / (duration_hours × 100))
+    if (intensityFactor === 0 && (a.tss ?? 0) > 0) {
+      intensityFactor = Math.sqrt((a.tss ?? 0) / (duration * 100));
+    }
+
+    // Default to zone 2 (endurance) if still no IF
+    if (intensityFactor === 0) {
+      zoneDistribution.zone2 += duration;
+      return;
+    }
+
+    if (intensityFactor < 0.55) zoneDistribution.zone1 += duration;
+    else if (intensityFactor < 0.75) zoneDistribution.zone2 += duration;
+    else if (intensityFactor < 0.85) zoneDistribution.zone3 += duration;
+    else if (intensityFactor < 0.95) zoneDistribution.zone4 += duration;
+    else zoneDistribution.zone5 += duration;
+  });
+
+  const totalHours = Object.values(zoneDistribution).reduce((a, b) => a + b, 0);
+
+  // Convert to percentages
+  const zonePercentages = {
+    zone1:
+      totalHours > 0
+        ? Math.round((zoneDistribution.zone1 / totalHours) * 100)
+        : 0,
+    zone2:
+      totalHours > 0
+        ? Math.round((zoneDistribution.zone2 / totalHours) * 100)
+        : 0,
+    zone3:
+      totalHours > 0
+        ? Math.round((zoneDistribution.zone3 / totalHours) * 100)
+        : 0,
+    zone4:
+      totalHours > 0
+        ? Math.round((zoneDistribution.zone4 / totalHours) * 100)
+        : 0,
+    zone5:
+      totalHours > 0
+        ? Math.round((zoneDistribution.zone5 / totalHours) * 100)
+        : 0,
+  };
+
+  // Get prescribed workouts for compliance
+  const { data: workouts } = await db
+    .from("prescribed_workouts")
+    .select("workout_date, sport, duration_min, intensity")
+    .eq("athlete_id", athleteId)
+    .gte("workout_date", blockStartStr)
+    .lte("workout_date", blockEndStr);
+
+  const reports = calculateBlockCompliance(
+    blockStartStr,
+    workouts ?? [],
+    blockActivities,
+  );
+
+  const totalCompleted = reports.reduce(
+    (sum, r) => sum + r.workoutsCompleted,
+    0,
+  );
+  const totalPrescribed = reports.reduce(
+    (sum, r) => sum + r.workoutsPrescribed,
+    0,
+  );
+  const complianceRate =
+    totalPrescribed > 0
+      ? Math.round((totalCompleted / totalPrescribed) * 100)
+      : 100;
+
+  // Calculate PROGRESSIVE OVERLOAD - measure week-over-week TSS increase
+  const weeklyTss = [0, 0, 0, 0];
+  for (let week = 0; week < 4; week++) {
+    const weekStart = new Date(currentBlockStart);
+    weekStart.setDate(currentBlockStart.getDate() + week * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const weekActivities = blockActivities.filter(
+      (a) =>
+        a.activityDate >= weekStart.toISOString().slice(0, 10) &&
+        a.activityDate <= weekEnd.toISOString().slice(0, 10),
+    );
+
+    weeklyTss[week] = weekActivities.reduce((sum, a) => sum + (a.tss ?? 0), 0);
+  }
+
+  // Progressive overload score: Are weeks 1-3 generally increasing? (Week 4 should drop)
+  const isProgressive =
+    weeklyTss[1] >= weeklyTss[0] * 0.95 && weeklyTss[2] >= weeklyTss[1] * 0.95;
+  const progressiveOverloadScore = isProgressive ? 100 : 50;
+
+  // Calculate CONSISTENCY - training frequency and regularity
+  const daysWithTraining = new Set(blockActivities.map((a) => a.activityDate))
+    .size;
+  const consistencyScore = Math.min(100, (daysWithTraining / 20) * 100); // 20 days in 4 weeks = 100%
+
+  // Calculate MONOTONY & STRAIN (Foster metrics)
+  const dailyTssMap = new Map<string, number>();
+
+  // Build daily TSS for the block
+  for (
+    let d = new Date(currentBlockStart);
+    d <= blockEndDate;
+    d.setDate(d.getDate() + 1)
+  ) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayActivities = blockActivities.filter(
+      (a) => a.activityDate === dateStr,
+    );
+    const dayTss = dayActivities.reduce((sum, a) => sum + (a.tss ?? 0), 0);
+    dailyTssMap.set(dateStr, dayTss);
+  }
+
+  const dailyTssValues = Array.from(dailyTssMap.values());
+  const avgDailyTss =
+    dailyTssValues.reduce((a, b) => a + b, 0) / dailyTssValues.length;
+
+  // Calculate standard deviation for monotony
+  const variance =
+    dailyTssValues.reduce((sum, tss) => {
+      return sum + Math.pow(tss - avgDailyTss, 2);
+    }, 0) / dailyTssValues.length;
+
+  const stdDev = Math.sqrt(variance);
+  const monotony = avgDailyTss > 0 ? avgDailyTss / (stdDev + 1) : 0; // +1 to avoid division by zero
+  const strain = totalBlockTss * monotony;
+
+  // Monotony interpretation: <2 = good variety, 2-3 = moderate, >3 = high risk
+  const monotonyScore = monotony < 2 ? 100 : monotony < 3 ? 70 : 40;
+
+  // Overtraining risk based on checkpoints
+  const overtrainingDays = checkpoints.filter(
+    (c) => c.trend === "stalled",
+  ).length;
+
+  // Use the proper calculateBlockEffectiveness function
+  const effectivenessScore = calculateBlockEffectiveness(
+    baselineCtl,
+    blockEndCtl,
+    complianceRate,
+    overtrainingDays,
+  );
+
+  return c.json({
+    blockStart: blockStartStr,
+    blockEnd: blockEndStr,
+    baselineCtl: Math.round(baselineCtl),
+    currentCtl: Math.round(blockEndCtl),
+    ctlGain: Math.round(blockEndCtl - baselineCtl),
+    totalBlockTss: Math.round(totalBlockTss),
+    zonePercentages,
+    complianceRate,
+    effectivenessScore: Math.round(effectivenessScore),
+    totalHours: Math.round(totalHours * 10) / 10,
+
+    // Additional metrics
+    progressiveOverloadScore,
+    consistencyScore,
+    monotony: Math.round(monotony * 10) / 10,
+    strain: Math.round(strain),
+    monotonyScore,
+    weeklyTss: weeklyTss.map((t) => Math.round(t)),
+    overtrainingRiskDays: overtrainingDays,
+  });
 });
 
 export default analysis;

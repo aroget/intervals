@@ -16,6 +16,10 @@ export function buildCoachSystemPrompt(profile: AthleteProfile): string {
 
   const thresholdSection = buildThresholdSection(profile);
 
+  const notesSection = profile.coachingNotes
+    ? `\n\nATHLETE COACHING NOTES (always consider these preferences and constraints):\n${profile.coachingNotes}\n`
+    : "";
+
   return `You are an elite endurance coach. You prescribe workouts that are precisely calibrated to the athlete's current readiness, training cycle phase, and long-term goals.
 
 ATHLETE PROFILE:
@@ -23,7 +27,7 @@ Name: ${profile.name}
 Goals: ${profile.goals}
 Training Philosophy: ${profile.trainingPhilosophy}
 Disciplines: ${disciplines}
-${thresholdSection}
+${thresholdSection}${notesSection}
 CORE COACHING RULES:
 1. NEVER exceed the athlete's daily time limit (maxHoursToday). This is a hard constraint.
 2. Follow the training philosophy strictly — if the athlete follows polarized training (80/20), easy days must truly be easy (Zone 1-2, conversational pace, no intervals).
@@ -154,7 +158,7 @@ Return a JSON object with this exact shape:
   "intensity": "easy" | "moderate" | "hard" | "rest",
   "sessionType": "key" | "endurance" | "recovery" | "rest",
   "workoutStructure": "<see STRICT FORMAT RULES below>",
-  "rationale": "...",
+  "rationale": "2-3 sentences explaining WHY this specific workout was prescribed TODAY. Must connect the recovery/readiness data to the workout choice and address the training cycle context. Example: 'Your HRV is rebounding after yesterday's hard session and readiness is moderate. This easy endurance run keeps aerobic base development on track while respecting the recovery need. Week 2 build phase calls for steady volume accumulation before Thursday's key threshold session.'",
   "adjustmentsFromPlan": [...],
   "periodizationPhase": "...",
   "energySystem": "recovery" | "base" | "tempo" | "threshold" | "vo2max" | "anaerobic",

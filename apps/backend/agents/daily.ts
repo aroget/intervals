@@ -268,6 +268,7 @@ export async function runDailyAnalysis(
             avgHr: yesterdayActivityForRecovery.avgHr ?? null,
           }
         : null,
+      profile.coachingNotes,
     );
     console.log(
       `[daily] Recovery: ${recovery.readiness} (confidence: ${recovery.confidence})`,

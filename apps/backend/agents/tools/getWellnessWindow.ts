@@ -8,7 +8,7 @@ export const getWellnessWindow: AgentTool<
 > = {
   name: "getWellnessWindow",
   description:
-    "Fetch wellness logs (HRV, RHR, sleep score) for the last N days. Use this to look up recent recovery data.",
+    "Fetch DAILY wellness logs (HRV, RHR, sleep score) for the last N days. Returns individual daily readings - for trend analysis, compare averages across multiple days rather than focusing on single-day values. Day-to-day volatility is normal; look for patterns over 3-7 days.",
   parametersJsonSchema: {
     type: "object",
     properties: {

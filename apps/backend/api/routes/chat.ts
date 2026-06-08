@@ -39,7 +39,7 @@ chat.post("/threads/:threadId/messages", async (c) => {
 
   const { data: profile } = await db
     .from("athlete_profiles")
-    .select("name, goals")
+    .select("name, goals, coaching_notes")
     .eq("athlete_id", thread.athlete_id as string)
     .single();
 
@@ -50,6 +50,7 @@ chat.post("/threads/:threadId/messages", async (c) => {
           athleteId: thread.athlete_id as string,
           athleteName: (profile?.name as string) ?? "Athlete",
           athleteGoals: (profile?.goals as string) ?? "",
+          coachingNotes: (profile?.coaching_notes as string | null) ?? null,
           threadId,
           userMessage: body.message,
         },

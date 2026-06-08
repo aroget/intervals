@@ -20,24 +20,22 @@ export function rollingAvg(
 
 /**
  * Computes the HRV trend vector based on historical context.
+ * Uses hrvScore (0-10 scale) for trend detection.
  */
 export function computeHrvTrend(logs: WellnessLog[]): {
-  avg: number | null;
   trend: "rising" | "declining" | "stable";
 } {
   const currentAvg = rollingAvg(logs, "hrvScore", 3);
   const historicalAvg = rollingAvg(logs, "hrvScore", 14);
 
   if (currentAvg === null || historicalAvg === null) {
-    return { avg: historicalAvg, trend: "stable" };
+    return { trend: "stable" };
   }
 
   // If 3-day average deviates from baseline by more than ~5%
   const threshold = historicalAvg * 0.05;
-  if (currentAvg > historicalAvg + threshold)
-    return { avg: historicalAvg, trend: "rising" };
-  if (currentAvg < historicalAvg - threshold)
-    return { avg: historicalAvg, trend: "declining" };
+  if (currentAvg > historicalAvg + threshold) return { trend: "rising" };
+  if (currentAvg < historicalAvg - threshold) return { trend: "declining" };
 
-  return { avg: historicalAvg, trend: "stable" };
+  return { trend: "stable" };
 }

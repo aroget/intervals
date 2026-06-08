@@ -22,10 +22,16 @@ export function buildRecoveryUserPrompt(
   metrics: ComputedMetrics,
   today: string,
   yesterdayActivity?: YesterdayActivityParam | null,
+  coachingNotes?: string | null,
 ): string {
   const yesterdaySection = yesterdayActivity
     ? `Yesterday's session: ${yesterdayActivity.sport ?? "unknown"} · ${Math.round((yesterdayActivity.durationSecs ?? 0) / 60)} min · TSS ${yesterdayActivity.tss ?? "N/A"} · IF ${yesterdayActivity.intensityFactor?.toFixed(2) ?? "N/A"} · Avg HR ${yesterdayActivity.avgHr ?? "N/A"} bpm`
     : "Yesterday's session: Rest day (no activity recorded)";
+
+  const notesSection = coachingNotes
+    ? `\n\nATHLETE COACHING NOTES (always consider these):\n${coachingNotes}`
+    : "";
+
   return `Analyze today's recovery status and return a JSON assessment.
 
 Today: ${today}
@@ -49,14 +55,14 @@ Readiness interpretation guide:
   0–29   → rest     (rest or very light activity only)
 
 Current readiness: ${metrics.readinessScore} → ${getReadinessCategory(metrics.readinessScore)}
-${yesterdaySection}
+${yesterdaySection}${notesSection}
 
 Return a JSON object with this exact shape:
 {
   "readiness": "high" | "moderate" | "low" | "rest",
-  "summary": "2-3 sentence assessment",
+  "summary": "2-3 sentences focused on WHAT YOUR BIOMETRICS ARE TELLING US — interpret HRV trend, resting heart rate, sleep quality, and current fatigue/freshness (TSB). This answers: 'What is my body's systemic data saying about my state today?'",
   "yesterdayImpact": "1-2 sentences on how yesterday's session (or rest) has affected today's HRV, fatigue and muscle readiness",
-  "trainingImplication": "1-2 sentences on what this means for today's workout and the week plan",
+  "trainingImplication": "1-2 sentences on what this readiness state means for today's training and the current block position. Bridge the biometric state to workout prescription. This answers: 'What should we do about it right now?'",
   "flags": ["specific concern 1", ...],
   "recommendation": "one sentence for the coach",
   "confidence": 0.0–1.0

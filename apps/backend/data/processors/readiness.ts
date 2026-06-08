@@ -96,7 +96,7 @@ export function buildComputedMetrics(params: {
 }): ComputedMetrics {
   const today = params.today ?? new Date().toISOString().slice(0, 10);
   const { atl, ctl, tsb } = computeTrainingLoad(params.activities);
-  const { avg: hrvSevenDayAvg, trend: hrvTrend } = computeHrvTrend(params.logs);
+  const { trend: hrvTrend } = computeHrvTrend(params.logs);
   const readinessScore = computeReadinessScore(params.logs, atl, tsb);
   const cycle = getCyclePosition(params.cycleStartDate, today);
   const dayName = getDayOfWeek(today);
@@ -105,7 +105,7 @@ export function buildComputedMetrics(params: {
   return {
     readinessScore,
     hrvTrend,
-    hrvSevenDayAvg,
+    hrvSevenDayAvg: rollingAvg(params.logs, "hrv", 7), // Raw HRV in milliseconds
     rhrSevenDayAvg: rollingAvg(params.logs, "rhr", 7),
     sleepScoreSevenDayAvg: rollingAvg(params.logs, "sleepScore", 7),
     atl: Math.round(atl * 10) / 10,

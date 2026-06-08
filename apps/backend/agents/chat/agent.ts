@@ -12,9 +12,7 @@ import { searchMemory } from "../tools/searchMemory.js";
 import { getCyclePosition_tool } from "../tools/getCyclePosition.js";
 import { getDailyAnalyses } from "../tools/getDailyAnalyses.js";
 import { getPrescribedWorkouts } from "../tools/getPrescribedWorkouts.js";
-import { swapWorkouts } from "../tools/swapWorkouts.js";
 import { regenerateWorkout } from "../tools/regenerateWorkout.js";
-import { replanWeek } from "../tools/replanWeek.js";
 import { getRecoveryPatterns } from "../tools/getRecoveryPatterns.js";
 import { getReadinessPrediction } from "../tools/getReadinessPrediction.js";
 import { getComplianceFrictions } from "../tools/getComplianceFrictions.js";
@@ -239,10 +237,11 @@ export async function runChatAgent(params: {
   athleteId: string;
   athleteName: string;
   athleteGoals: string;
+  coachingNotes?: string | null;
   threadId: string;
   userMessage: string;
 }): Promise<string> {
-  const { athleteId, athleteName, athleteGoals, threadId, userMessage } =
+  const { athleteId, athleteName, athleteGoals, coachingNotes, threadId, userMessage } =
     params;
 
   // Load current thread history + cross-session context + schedule context in parallel
@@ -266,6 +265,7 @@ export async function runChatAgent(params: {
         athleteGoals,
         crossSessionContext,
         scheduleContext,
+        coachingNotes ?? null,
       ),
     },
     ...(
@@ -285,9 +285,7 @@ export async function runChatAgent(params: {
     bindAthleteId(getCyclePosition_tool, athleteId),
     bindAthleteId(getDailyAnalyses, athleteId),
     bindAthleteId(getPrescribedWorkouts, athleteId),
-    bindAthleteId(swapWorkouts, athleteId),
     bindAthleteId(regenerateWorkout, athleteId),
-    bindAthleteId(replanWeek, athleteId),
     bindAthleteId(getRecoveryPatterns, athleteId),
     bindAthleteId(getReadinessPrediction, athleteId),
     bindAthleteId(getComplianceFrictions, athleteId),
@@ -325,13 +323,14 @@ export async function runChatAgentStreaming(
     athleteId: string;
     athleteName: string;
     athleteGoals: string;
+    coachingNotes?: string | null;
     threadId: string;
     userMessage: string;
   },
   onChunk: (text: string) => void,
   onStatus: (text: string) => void = () => {},
 ): Promise<string> {
-  const { athleteId, athleteName, athleteGoals, threadId, userMessage } =
+  const { athleteId, athleteName, athleteGoals, coachingNotes, threadId, userMessage } =
     params;
 
   const [{ data: history }, crossSessionContext, scheduleContext] =
@@ -354,6 +353,7 @@ export async function runChatAgentStreaming(
         athleteGoals,
         crossSessionContext,
         scheduleContext,
+        coachingNotes ?? null,
       ),
     },
     ...(
@@ -373,9 +373,7 @@ export async function runChatAgentStreaming(
     bindAthleteId(getCyclePosition_tool, athleteId),
     bindAthleteId(getDailyAnalyses, athleteId),
     bindAthleteId(getPrescribedWorkouts, athleteId),
-    bindAthleteId(swapWorkouts, athleteId),
     bindAthleteId(regenerateWorkout, athleteId),
-    bindAthleteId(replanWeek, athleteId),
     bindAthleteId(getRecoveryPatterns, athleteId),
     bindAthleteId(getReadinessPrediction, athleteId),
     bindAthleteId(getComplianceFrictions, athleteId),

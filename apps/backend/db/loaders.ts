@@ -22,6 +22,9 @@ export async function loadProfile(athleteId: string): Promise<AthleteProfile> {
     weeklyMaxHours: data.weekly_max_hours ?? {},
     preferredMetrics: data.preferred_metrics ?? [],
     cycleStartDate: data.cycle_start_date,
+    coachingNotes: data.coaching_notes ?? null,
+    preferredTheme:
+      (data.preferred_theme as "light" | "dark" | "system") ?? "system",
     ftp: data.ftp ?? null,
     runningThresholdPace: data.running_threshold_pace ?? null,
     lthr: data.lthr ?? null,

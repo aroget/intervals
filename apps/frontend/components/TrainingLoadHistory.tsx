@@ -12,8 +12,10 @@ interface Week {
 
 export default function TrainingLoadHistory({
   athleteId,
+  weeks: weeksCount = 12,
 }: {
   athleteId: string;
+  weeks?: number;
 }) {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,8 +23,9 @@ export default function TrainingLoadHistory({
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    setLoading(true);
     fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/training-load-history`,
+      `${process.env.NEXT_PUBLIC_API_URL}/analysis/${athleteId}/training-load-history?weeks=${weeksCount}`,
     )
       .then((r) => r.json())
       .then((data) => {
@@ -30,7 +33,7 @@ export default function TrainingLoadHistory({
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [athleteId]);
+  }, [athleteId, weeksCount]);
 
   if (loading) {
     return (
@@ -50,8 +53,12 @@ export default function TrainingLoadHistory({
     );
   }
 
-  const maxTss = Math.max(...weeks.map((w) => w.totalTss));
-  const avgTss = weeks.reduce((sum, w) => sum + w.totalTss, 0) / weeks.length;
+  // Get the visible weeks based on selected timeframe
+  const visibleWeeks = weeks.slice(-weeksCount);
+
+  const maxTss = Math.max(...visibleWeeks.map((w) => w.totalTss));
+  const avgTss =
+    visibleWeeks.reduce((sum, w) => sum + w.totalTss, 0) / visibleWeeks.length;
 
   // Calculate 4-week moving average
   const movingAvg = weeks.map((week, i) => {
@@ -73,7 +80,7 @@ export default function TrainingLoadHistory({
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-bg-assistant p-3 rounded-lg border border-border">
           <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
             Peak Week
@@ -90,20 +97,12 @@ export default function TrainingLoadHistory({
             {Math.round(avgTss)}
           </p>
         </div>
-        <div className="bg-bg-assistant p-3 rounded-lg border border-border">
-          <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-            Last Week
-          </p>
-          <p className="text-xl font-bold tabular-nums text-orange-bright mt-1">
-            {Math.round(weeks[weeks.length - 1].totalTss)}
-          </p>
-        </div>
       </div>
 
       {/* Periodized Combo Chart */}
       <div className="bg-bg-assistant p-4 rounded-lg border border-border">
         <h4 className="text-sm font-semibold text-text mb-4">
-          Training Load Progression (12-Week View)
+          Training Load Progression ({weeksCount}-Week View)
         </h4>
         <div className="relative h-64">
           <svg
@@ -129,12 +128,11 @@ export default function TrainingLoadHistory({
 
             {/* 4-Week Moving Average Line */}
             <polyline
-              points={weeks
-                .slice(-12)
+              points={visibleWeeks
                 .map((week, i) => {
-                  const x = ((i + 0.5) / 12) * 100;
-                  const y =
-                    100 - (movingAvg[weeks.length - 12 + i] / maxTss) * 100;
+                  const x = ((i + 0.5) / visibleWeeks.length) * 100;
+                  const weekIndex = weeks.indexOf(week);
+                  const y = 100 - (movingAvg[weekIndex] / maxTss) * 100;
                   return `${x},${y}`;
                 })
                 .join(" ")}
@@ -146,21 +144,21 @@ export default function TrainingLoadHistory({
             />
 
             {/* Weekly TSS Bars */}
-            {weeks.slice(-12).map((week, i) => {
-              const x = (i / 12) * 100;
-              const barWidth = (1 / 12) * 100 * 0.8;
+            {visibleWeeks.map((week, i) => {
+              const x = (i / visibleWeeks.length) * 100;
+              const barWidth = (1 / visibleWeeks.length) * 100 * 0.8;
               const height = (week.totalTss / maxTss) * 100;
               const fillColor = getWeekColorFill(week);
-              const opacity = i >= 8 ? 1 : 0.7;
-              const movingAvgValue = Math.round(
-                movingAvg[weeks.length - 12 + i],
-              );
+              const opacity =
+                weeksCount === 4 ? 1 : i >= visibleWeeks.length - 4 ? 1 : 0.7;
+              const weekIndex = weeks.indexOf(week);
+              const movingAvgValue = Math.round(movingAvg[weekIndex]);
 
               return (
                 <g key={week.weekStart}>
                   {/* Bar */}
                   <rect
-                    x={x + (1 / 12) * 100 * 0.1}
+                    x={x + (1 / visibleWeeks.length) * 100 * 0.1}
                     y={100 - height}
                     width={barWidth}
                     height={height}
@@ -182,7 +180,7 @@ export default function TrainingLoadHistory({
                   {/* Week type marker */}
                   {week.weekType && (
                     <text
-                      x={x + (1 / 12) * 100 * 0.5}
+                      x={x + (1 / visibleWeeks.length) * 100 * 0.5}
                       y="98"
                       fontSize="3"
                       textAnchor="middle"
@@ -248,8 +246,17 @@ export default function TrainingLoadHistory({
 
         {/* X-axis labels */}
         <div className="flex justify-between mt-2 px-1">
-          {weeks.slice(-12).map((week, i) => {
-            if (i % 2 === 0) {
+          {visibleWeeks.map((week, i) => {
+            // Dynamic interval: show every label for 4W, every 2nd for 8W, every 3rd for 12W, every 6th for 24W
+            const interval =
+              weeksCount <= 4
+                ? 1
+                : weeksCount <= 8
+                  ? 2
+                  : weeksCount <= 12
+                    ? 3
+                    : 6;
+            if (i % interval === 0 || i === visibleWeeks.length - 1) {
               return (
                 <div key={week.weekStart} className="text-[9px] text-muted">
                   {new Date(week.weekStart + "T00:00:00").toLocaleDateString(
@@ -264,36 +271,12 @@ export default function TrainingLoadHistory({
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-teal" />
-          <span className="text-muted">Base</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-orange" />
-          <span className="text-muted">Build</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-orange-bright" />
-          <span className="text-muted">Peak</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-peach" />
-          <span className="text-muted">Recovery</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 border-t-2 border-dashed border-text opacity-60" />
-          <span className="text-muted">4-Week Avg</span>
-        </div>
-      </div>
-
       {/* Insight */}
       <div className="bg-bg-assistant p-4 rounded-lg border border-border">
         <p className="text-xs text-text leading-relaxed">
-          {weeks[weeks.length - 1].totalTss > avgTss * 1.2
+          {visibleWeeks[visibleWeeks.length - 1].totalTss > avgTss * 1.2
             ? "📈 High training load this week — monitor recovery closely."
-            : weeks[weeks.length - 1].totalTss < avgTss * 0.7
+            : visibleWeeks[visibleWeeks.length - 1].totalTss < avgTss * 0.7
               ? "📉 Low training load — recovery week or training gap?"
               : "✅ Training load is consistent with your recent average."}
         </p>

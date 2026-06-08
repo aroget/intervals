@@ -157,3 +157,48 @@ body {
 .prose-chat tr:hover td {
   background-color: color-mix(in srgb, var(--mint) 30%, transparent);
 }
+
+/* ── Recharts overrides ───────────────────────────────────────────────────── */
+/* Remove ALL grey backgrounds from Recharts elements */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-cartesian-grid,
+.recharts-bar,
+.recharts-line,
+.recharts-area,
+.recharts-layer,
+.recharts-reference-line,
+.recharts-reference-area,
+.recharts-sector {
+  background: transparent !important;
+}
+
+/* Remove hover effects that add grey backgrounds */
+.recharts-bar-rectangle:hover,
+.recharts-bar-rectangle:focus,
+.recharts-sector:hover,
+.recharts-sector:focus,
+.recharts-active-shape {
+  filter: brightness(1.05) !important;
+  background: transparent !important;
+  fill-opacity: 1 !important;
+}
+
+/* Ensure chart containers have no background */
+[data-chart],
+[data-chart] > div {
+  background: transparent !important;
+}
+
+/* Ensure ResponsiveContainer takes full width/height */
+.recharts-responsive-container {
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+}
+
+/* Remove any black/grey filled areas */
+.recharts-active-dot,
+.recharts-dot {
+  stroke: transparent !important;
+}

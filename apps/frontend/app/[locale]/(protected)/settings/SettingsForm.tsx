@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
+import { useTheme } from "next-themes";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
 
@@ -44,6 +45,8 @@ export interface ProfileData {
   disciplines: Sport[];
   weeklyMaxHours: Record<Day, number>;
   cycleStartDate: string;
+  coachingNotes: string; // Custom instructions for the AI coach
+  preferredTheme: "light" | "dark" | "system"; // Theme preference
   createdAt: string | null;
   ftp: number | null;
   runningThresholdPace: number | null; // seconds per km
@@ -146,6 +149,7 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const { setTheme } = useTheme();
 
   const activeTab = (searchParams.get("tab") as Tab) ?? "account";
 
@@ -208,6 +212,8 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
           disciplines: form.disciplines,
           weeklyMaxHours: form.weeklyMaxHours,
           cycleStartDate: form.cycleStartDate || undefined,
+          coachingNotes: form.coachingNotes || undefined,
+          preferredTheme: form.preferredTheme,
           ftp: form.ftp,
           runningThresholdPace: form.runningThresholdPace,
           lthr: form.lthr,
@@ -218,13 +224,8 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
         throw new Error(msg ?? `HTTP ${res.status}`);
       }
       setSaved(true);
-      // Regenerate the week's workouts in the background — new goals/schedule
-      // should be reflected immediately without blocking the save UX.
-      fetch(`${API}/analysis/${form.athleteId}/replan-week`, {
-        method: "POST",
-      }).catch(() => {
-        // non-fatal — the cron job will pick it up next run
-      });
+      // Note: Plan is NOT automatically regenerated to preserve user's existing schedule.
+      // Plans only regenerate on the daily cron (6:30am UTC) or manual replan actions.
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -316,6 +317,40 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
             </div>
           </Section>
 
+          <Section title="Appearance">
+            <p className="text-muted text-sm mb-3">
+              Choose your preferred color theme. This setting will sync across
+              all your devices.
+            </p>
+            <Field label="Theme">
+              <div className="flex gap-2">
+                {[
+                  { value: "light", label: "☀️ Light", icon: "☀️" },
+                  { value: "dark", label: "🌙 Dark", icon: "🌙" },
+                  { value: "system", label: "💻 System", icon: "💻" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      set(
+                        "preferredTheme",
+                        value as "light" | "dark" | "system",
+                      );
+                      setTheme(value);
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all border ${
+                      form.preferredTheme === value
+                        ? "bg-teal text-white border-teal shadow-sm"
+                        : "bg-bg border-border text-muted hover:text-text hover:border-teal/40"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </Section>
+
           <SaveBar
             saving={saving}
             saved={saved}
@@ -366,6 +401,19 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
                 className={`${inputCls} resize-none`}
                 placeholder={t("fields.goalsPlaceholder")}
               />
+            </Field>
+
+            <Field label="Custom Coaching Instructions">
+              <textarea
+                value={form.coachingNotes || ""}
+                onChange={(e) => set("coachingNotes", e.target.value)}
+                rows={4}
+                className={`${inputCls} resize-none`}
+                placeholder="Optional: Add any preferences, constraints, or context you want your coach to always consider (e.g., 'I prefer morning runs', 'avoid back-to-back hard days', 'I have a race in 6 weeks')"
+              />
+              <p className="text-muted text-xs mt-1.5">
+                These notes will be included in all coaching decisions
+              </p>
             </Field>
           </Section>
 

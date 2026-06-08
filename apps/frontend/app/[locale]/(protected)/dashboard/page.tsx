@@ -33,6 +33,7 @@ interface Analysis {
   analysis_date: string;
   readiness_score: number;
   hrv_trend: string;
+  block_effectiveness: number | null;
   agent_output: {
     readiness: string;
     summary: string;
@@ -597,7 +598,7 @@ export default function DashboardPage() {
 
   const { data: activitiesData, isLoading: activitiesLoading } = useSWR<{
     activities: Activity[];
-  }>(`${API}/analysis/${ATHLETE_ID}/recent-activities`, fetcher, {
+  }>(`${API}/athlete/${ATHLETE_ID}/activities?days=30`, fetcher, {
     refreshInterval: 0,
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
@@ -625,7 +626,7 @@ export default function DashboardPage() {
         .then(() => mutateToday())
         .finally(() => setAnalyzingToday(false));
     }
-  }, [data, isLoading]);
+  }, [data, isLoading, analyzingToday, mutateToday]);
 
   const closeModal = useCallback(() => setSelectedActivity(null), []);
 
@@ -659,7 +660,8 @@ export default function DashboardPage() {
     return "text-orange";
   };
 
-  if (isLoading) {
+  // Show loading until we have analysis with readiness (prevents workout flickering)
+  if (isLoading || analyzingToday || (!data?.analysis && !data?.workout)) {
     return (
       <div className="min-h-screen bg-bg px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -709,7 +711,7 @@ export default function DashboardPage() {
                 </h2>
                 <span className="text-xs text-muted">{today.log_date}</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 {/* HRV */}
                 <div className="space-y-1 text-center">
                   <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
@@ -847,163 +849,300 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Block Effectiveness */}
+                {analysis?.block_effectiveness != null && (
+                  <div className="space-y-1 text-center">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                      Block Score
+                    </p>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
+                        {Math.round(analysis.block_effectiveness)}
+                      </span>
+                      <span className="text-xs sm:text-sm font-semibold text-teal">
+                        /100
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-muted">
+                      4-week effectiveness
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
 
-          {/* Workout Card */}
-          {!isLoading && (
-            <div
-              className={`rounded-2xl border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-                  {t("workout.title")}
-                </h2>
-                {workout?.agent_output?.periodizationPhase && (
-                  <span className="text-xs font-medium text-muted capitalize">
-                    {workout.agent_output.periodizationPhase}
-                  </span>
-                )}
-              </div>
-              {workout ? (
-                <>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-baseline gap-2 sm:gap-3">
-                      <span className="text-2xl sm:text-3xl font-bold text-teal capitalize">
-                        {workout.sport}
+          {/* Welcome Summary Card */}
+          {analysis && (
+            <div className="rounded-2xl border border-border bg-gradient-to-br from-bg-card to-bg-assistant px-4 sm:px-6 py-5 sm:py-6 shadow-sm">
+              <div className="flex items-start gap-3 mb-4">
+                <span className="text-2xl">👋</span>
+                <div className="flex-1">
+                  <h1 className="text-lg font-bold text-text mb-1">
+                    {new Date().toLocaleDateString("en-US", {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </h1>
+                  <p className="text-xs text-muted">
+                    {workout?.agent_output?.periodizationPhase && (
+                      <span className="capitalize">
+                        {workout.agent_output.periodizationPhase} Week •{" "}
                       </span>
-                      <span className="text-orange font-semibold text-sm sm:text-base">
-                        {workout.duration_min} min
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <WorkoutBadge
-                        energySystem={workout.agent_output?.energySystem}
-                        intensity={workout.intensity}
-                      />
-                      <PushButton workout={workout} />
-                    </div>
-                  </div>
-                  <p className="text-text text-sm leading-relaxed">
-                    {workout.rationale}
-                  </p>
-
-                  {/* Today's prescription context */}
-                  {analysis &&
-                    (analysis.agent_output?.trainingImplication ||
-                      analysis.agent_output?.recommendation) && (
-                      <div className="space-y-1.5 pt-3 border-t border-border">
-                        <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-                          Today's prescription context
-                        </p>
-                        <p className="text-sm text-text leading-relaxed">
-                          {analysis.agent_output.trainingImplication ??
-                            analysis.agent_output.recommendation}
-                        </p>
-                      </div>
                     )}
+                    Readiness {analysis.readiness_score}/100
+                  </p>
+                </div>
+              </div>
 
-                  {/* Training load badges */}
-                  {(() => {
-                    const latestAct = activitiesData?.activities?.[0] ?? null;
-                    const tsb =
-                      latestAct?.ctl != null && latestAct?.atl != null
-                        ? Math.round(latestAct.ctl - latestAct.atl)
-                        : null;
-                    return (
-                      latestAct &&
-                      (latestAct.atl != null || latestAct.ctl != null) && (
-                        <div className="flex items-center gap-2 pt-3 border-t border-border flex-wrap">
-                          {latestAct.atl != null && (
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange/10 text-orange border border-orange/20">
-                              ATL&nbsp;{Math.round(latestAct.atl)}
-                            </span>
-                          )}
-                          {latestAct.ctl != null && (
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal/10 text-teal border border-teal/20">
-                              CTL&nbsp;{Math.round(latestAct.ctl)}
-                            </span>
-                          )}
-                          {tsb !== null && (
-                            <span
-                              className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                                tsb >= 0
-                                  ? "bg-teal/10 text-teal border-teal/20"
-                                  : "bg-orange/10 text-orange border-orange/20"
-                              }`}
-                            >
-                              TSB&nbsp;{tsb > 0 ? `+${tsb}` : tsb}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    );
-                  })()}
+              <div className="space-y-4">
+                {/* State: What biometrics are telling us */}
+                {analysis.agent_output?.summary && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold tracking-[0.12em] uppercase text-teal">
+                        📊 State
+                      </span>
+                    </div>
+                    <p className="text-sm text-text leading-relaxed">
+                      {analysis.agent_output.summary}
+                    </p>
+                  </div>
+                )}
 
-                  {workout.agent_output?.phases &&
-                  workout.agent_output.phases.length > 0 ? (
-                    <div className="pt-3 border-t border-border space-y-3">
-                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-                        {t("workout.structure")}
-                      </p>
-                      <WorkoutChart
-                        phases={workout.agent_output.phases}
-                        sport={workout.agent_output.sport}
-                      />
-                      {workout.agent_output.workoutStructure && (
-                        <pre className="text-sm text-text font-sans whitespace-pre-wrap leading-relaxed">
-                          {workout.agent_output.workoutStructure}
-                        </pre>
+                {/* Action: Today's workout and why */}
+                {workout && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold tracking-[0.12em] uppercase text-orange">
+                        🎯 Today's Action
+                      </span>
+                    </div>
+                    <p className="text-sm text-text leading-relaxed">
+                      <span className="font-semibold capitalize">
+                        {workout.sport}
+                      </span>{" "}
+                      for{" "}
+                      <span className="font-semibold">
+                        {workout.duration_min} minutes
+                      </span>{" "}
+                      at{" "}
+                      <span className="font-semibold capitalize">
+                        {workout.intensity}
+                      </span>{" "}
+                      intensity. {workout.rationale}
+                    </p>
+                  </div>
+                )}
+
+                {/* Big Picture: Block progress context */}
+                {(analysis.agent_output?.trainingImplication ||
+                  analysis.block_effectiveness != null) && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold tracking-[0.12em] uppercase text-text opacity-60">
+                        🏔️ Big Picture
+                      </span>
+                    </div>
+                    <div className="text-sm text-text leading-relaxed space-y-1">
+                      {analysis.block_effectiveness != null && (
+                        <p>
+                          Your current 4-week training block is scoring{" "}
+                          <span
+                            className={`font-semibold ${
+                              analysis.block_effectiveness >= 75
+                                ? "text-teal"
+                                : analysis.block_effectiveness >= 50
+                                  ? "text-orange"
+                                  : "text-peach"
+                            }`}
+                          >
+                            {Math.round(analysis.block_effectiveness)}/100
+                          </span>{" "}
+                          effectiveness
+                          {analysis.block_effectiveness >= 75
+                            ? " — excellent progress toward your goals."
+                            : analysis.block_effectiveness >= 50
+                              ? " — solid progress with room to optimize."
+                              : " — needs attention to get back on track."}
+                        </p>
+                      )}
+                      {analysis.agent_output?.trainingImplication && (
+                        <p>{analysis.agent_output.trainingImplication}</p>
                       )}
                     </div>
-                  ) : workout.agent_output?.workoutStructure ? (
-                    <div className="pt-3 border-t border-border space-y-2">
-                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-                        {t("workout.structure")}
+                  </div>
+                )}
+
+                {/* Recovery flags if any */}
+                {analysis.agent_output?.flags &&
+                  analysis.agent_output.flags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+                      {analysis.agent_output.flags.map((flag, i) => (
+                        <span
+                          key={i}
+                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-peach/10 text-peach border border-peach/20"
+                        >
+                          ⚠️ {flag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+
+          {/* Workout Card */}
+          <div
+            className={`rounded-2xl border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                {t("workout.title")}
+              </h2>
+              {workout?.agent_output?.periodizationPhase && (
+                <span className="text-xs font-medium text-muted capitalize">
+                  {workout.agent_output.periodizationPhase}
+                </span>
+              )}
+            </div>
+            {workout ? (
+              <>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-baseline gap-2 sm:gap-3">
+                    <span className="text-2xl sm:text-3xl font-bold text-teal capitalize">
+                      {workout.sport}
+                    </span>
+                    <span className="text-orange font-semibold text-sm sm:text-base">
+                      {workout.duration_min} min
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <WorkoutBadge
+                      energySystem={workout.agent_output?.energySystem}
+                      intensity={workout.intensity}
+                    />
+                    <PushButton workout={workout} />
+                  </div>
+                </div>
+                <p className="text-text text-sm leading-relaxed">
+                  {workout.rationale}
+                </p>
+
+                {/* Today's prescription context */}
+                {analysis &&
+                  (analysis.agent_output?.trainingImplication ||
+                    analysis.agent_output?.recommendation) && (
+                    <div className="space-y-1.5 pt-3 border-t border-border">
+                      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                        Today's prescription context
                       </p>
+                      <p className="text-sm text-text leading-relaxed">
+                        {analysis.agent_output.trainingImplication ??
+                          analysis.agent_output.recommendation}
+                      </p>
+                    </div>
+                  )}
+
+                {/* Training load badges */}
+                {(() => {
+                  const latestAct = activitiesData?.activities?.[0] ?? null;
+                  const tsb =
+                    latestAct?.ctl != null && latestAct?.atl != null
+                      ? Math.round(latestAct.ctl - latestAct.atl)
+                      : null;
+                  return (
+                    latestAct &&
+                    (latestAct.atl != null || latestAct.ctl != null) && (
+                      <div className="flex items-center gap-2 pt-3 border-t border-border flex-wrap">
+                        {latestAct.atl != null && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange/10 text-orange border border-orange/20">
+                            ATL&nbsp;{Math.round(latestAct.atl)}
+                          </span>
+                        )}
+                        {latestAct.ctl != null && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal/10 text-teal border border-teal/20">
+                            CTL&nbsp;{Math.round(latestAct.ctl)}
+                          </span>
+                        )}
+                        {tsb !== null && (
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                              tsb >= 0
+                                ? "bg-teal/10 text-teal border-teal/20"
+                                : "bg-orange/10 text-orange border-orange/20"
+                            }`}
+                          >
+                            TSB&nbsp;{tsb > 0 ? `+${tsb}` : tsb}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  );
+                })()}
+
+                {workout.agent_output?.phases &&
+                workout.agent_output.phases.length > 0 ? (
+                  <div className="pt-3 border-t border-border space-y-3">
+                    <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                      {t("workout.structure")}
+                    </p>
+                    <WorkoutChart
+                      phases={workout.agent_output.phases}
+                      sport={workout.agent_output.sport}
+                    />
+                    {workout.agent_output.workoutStructure && (
                       <pre className="text-sm text-text font-sans whitespace-pre-wrap leading-relaxed">
                         {workout.agent_output.workoutStructure}
                       </pre>
-                    </div>
-                  ) : workout.agent_output?.structure?.phases?.length > 0 ? (
-                    <div className="space-y-3 pt-3 border-t border-border">
-                      <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
-                        {t("workout.structure")}
-                      </p>
-                      {workout.agent_output.structure.phases.map((phase, i) => (
-                        <div key={i} className="flex gap-4 text-sm">
-                          <span className="text-orange font-semibold w-12 shrink-0 tabular-nums">
-                            {phase.durationMin}m
+                    )}
+                  </div>
+                ) : workout.agent_output?.workoutStructure ? (
+                  <div className="pt-3 border-t border-border space-y-2">
+                    <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                      {t("workout.structure")}
+                    </p>
+                    <pre className="text-sm text-text font-sans whitespace-pre-wrap leading-relaxed">
+                      {workout.agent_output.workoutStructure}
+                    </pre>
+                  </div>
+                ) : workout.agent_output?.structure?.phases?.length > 0 ? (
+                  <div className="space-y-3 pt-3 border-t border-border">
+                    <p className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">
+                      {t("workout.structure")}
+                    </p>
+                    {workout.agent_output.structure.phases.map((phase, i) => (
+                      <div key={i} className="flex gap-4 text-sm">
+                        <span className="text-orange font-semibold w-12 shrink-0 tabular-nums">
+                          {phase.durationMin}m
+                        </span>
+                        <div>
+                          <span className="font-semibold text-text">
+                            {phase.name}
                           </span>
-                          <div>
-                            <span className="font-semibold text-text">
-                              {phase.name}
+                          {phase.targetZone && (
+                            <span className="text-muted">
+                              {" "}
+                              · {phase.targetZone}
                             </span>
-                            {phase.targetZone && (
-                              <span className="text-muted">
-                                {" "}
-                                · {phase.targetZone}
-                              </span>
-                            )}
-                            <p className="text-muted text-xs mt-0.5">
-                              {phase.description}
-                            </p>
-                          </div>
+                          )}
+                          <p className="text-muted text-xs mt-0.5">
+                            {phase.description}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <p className="text-sm text-muted">
-                  {analyzingToday
-                    ? t("workout.generating")
-                    : t("workout.noData")}
-                </p>
-              )}
-            </div>
-          )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-muted">
+                {analyzingToday ? t("workout.generating") : t("workout.noData")}
+              </p>
+            )}
+          </div>
 
           {/* Sport Progress Card */}
           {progressData?.sportProgress &&

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import CTLBandedChart from "./CTLBandedChart";
 import ComplianceRing from "./ComplianceRing";
-import FormStatusBadge from "./FormStatusBadge";
 
 interface WeeklyReport {
   weekNumber: number;
@@ -784,49 +782,6 @@ export default function ComplianceMetrics({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Fitness Trajectory */}
-        <div className="bg-bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-6">
-          `
-          <h3 className="text-[18px] font-bold text-teal mb-4">
-            Fitness & Form Trajectory
-          </h3>
-          {/* Form Status Badge */}
-          {currentTsb !== null && (
-            <div className="mb-4">
-              <FormStatusBadge
-                tsb={currentTsb}
-                weekType={
-                  fitnessData.checkpoints[fitnessData.checkpoints.length - 1]
-                    ?.weekType || "base"
-                }
-              />
-            </div>
-          )}
-          <div className="mb-2">
-            <p className="text-xs sm:text-sm text-muted mb-4">
-              Baseline CTL:{" "}
-              <span className="font-bold text-text">
-                {Math.round(fitnessData.baselineCtl * 100) / 100}
-              </span>
-              {currentTsb !== null && (
-                <>
-                  {" · "}Current TSB:{" "}
-                  <span
-                    className={`font-bold ${currentTsb > 0 ? "text-teal" : currentTsb < -25 ? "text-orange-bright" : "text-text"}`}
-                  >
-                    {currentTsb > 0 ? "+" : ""}
-                    {currentTsb}
-                  </span>
-                </>
-              )}
-            </p>
-            <CTLBandedChart
-              checkpoints={fitnessData.checkpoints}
-              baselineCtl={fitnessData.baselineCtl}
-            />
-          </div>
         </div>
       </div>
     </>
