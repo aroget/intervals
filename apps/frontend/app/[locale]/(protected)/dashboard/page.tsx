@@ -580,25 +580,37 @@ export default function DashboardPage() {
   } = useSWR<{ analysis: Analysis; workout: Workout }>(
     `${API}/analysis/${ATHLETE_ID}/today`,
     fetcher,
-    { refreshInterval: 60_000 },
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
   );
 
   const { data: wellnessData, isLoading: wellnessLoading } = useSWR<{
     wellness: WellnessRow[];
   }>(`${API}/analysis/${ATHLETE_ID}/wellness`, fetcher, {
-    refreshInterval: 60_000,
+    refreshInterval: 0,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
   });
 
   const { data: activitiesData, isLoading: activitiesLoading } = useSWR<{
     activities: Activity[];
   }>(`${API}/analysis/${ATHLETE_ID}/recent-activities`, fetcher, {
-    refreshInterval: 120_000,
+    refreshInterval: 0,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
   });
 
   const { data: progressData } = useSWR<{ sportProgress: SportProgress[] }>(
     `${API}/analysis/${ATHLETE_ID}/sport-progress`,
     fetcher,
-    { refreshInterval: 300_000 },
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
   );
 
   const [analyzingToday, setAnalyzingToday] = useState(false);
