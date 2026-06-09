@@ -1,10 +1,16 @@
 {
   "version": 2,
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @intervals/shared build && pnpm --filter @intervals/brand build && pnpm --filter @intervals/constants build",
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "api/index.ts"
+      "destination": "/api/index"
     }
   ]
 }

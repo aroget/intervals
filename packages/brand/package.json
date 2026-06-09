@@ -2,13 +2,25 @@
   "name": "@intervals/brand",
   "version": "0.0.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./colors": "./src/colors.ts",
-    "./guidelines": "./src/guidelines.ts",
-    "./icons": "./src/icons.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./colors": {
+      "types": "./dist/colors.d.ts",
+      "default": "./dist/colors.js"
+    },
+    "./guidelines": {
+      "types": "./dist/guidelines.d.ts",
+      "default": "./dist/guidelines.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "default": "./dist/icons.js"
+    }
   },
   "scripts": {
     "build": "tsc",
