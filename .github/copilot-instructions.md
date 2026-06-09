@@ -127,6 +127,107 @@ The chat agent is **fitness-only** — it politely redirects off-topic questions
 
 Week 1 = base, Week 2 = build, Week 3 = peak, Week 4 = recovery. Logic is in `apps/backend/data/processors/cycleTracker.ts`. Week 4 is always a recovery week — coach agent must reduce volume 40-50% and avoid hard sessions.
 
+## API Design Patterns
+
+### Composite Processors Pattern
+
+**Problem**: API routes were duplicating logic across 20+ endpoints (1488 lines in analysis.ts alone)
+
+**Solution**: Create composite processors that orchestrate loaders + other processors
+
+**Example**: `blockAnalysis.ts` provides all block-related data through one function with options:
+
+```typescript
+const result = await getBlockAnalysis(athleteId, refDate, {
+  includeWorkouts: true,     // Week-by-week structure with daily workouts
+  includeCompliance: true,   // Compliance reports
+  includeFitness: true,      // CTL checkpoints
+  includeEffectiveness: true, // Block score + component metrics
+  includeZones: true,        // Intensity zone distribution
+});
+```
+
+**Benefits**:
+- Block boundaries calculated once
+- Activities loaded once, reused across calculations
+- Eliminates 600+ lines of duplication
+- Routes become thin orchestrators (5-10 lines)
+
+### Thin Route Pattern
+
+Routes should be simple orchestrators that:
+1. Extract parameters from request
+2. Call composite processor or existing processor
+3. Transform result for API contract
+4. Return JSON
+
+**Example**:
+
+```typescript
+// ❌ BAD: 80 lines of logic in route
+analysis.get("/:athleteId/compliance", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  
+  // Get profile, calculate block boundaries, load workouts, 
+  // load activities, run calculations, aggregate results...
+  // (80 lines of duplicated logic)
+  
+  return c.json(results);
+});
+
+// ✅ GOOD: 7 lines, logic in processor
+analysis.get("/:athleteId/compliance", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const refDate = c.req.query("date") ?? getTodayDate();
+  
+  const result = await getBlockAnalysis(athleteId, refDate, {
+    includeCompliance: true,
+  });
+  
+  return c.json({
+    blockStartDate: result.blockStartDate,
+    weeklyReports: result.compliance?.weeklyReports ?? [],
+    overallCompliance: result.compliance?.overallCompliance ?? {},
+  });
+});
+```
+
+### Flexible Endpoints with Query Parameters
+
+Instead of creating separate endpoints for variations, use query parameters:
+
+```typescript
+// ✅ GOOD: One flexible endpoint
+GET /analysis/:athleteId/block?include=workouts,compliance,fitness
+
+// ❌ BAD: Multiple endpoints doing similar things
+GET /analysis/:athleteId/block-overview
+GET /analysis/:athleteId/compliance  
+GET /analysis/:athleteId/fitness-trajectory
+```
+
+**Implementation**:
+
+```typescript
+analysis.get("/:athleteId/block", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const include = c.req.query("include")?.split(",") ?? [];
+  
+  return c.json(await getBlockAnalysis(athleteId, getTodayDate(), {
+    includeWorkouts: include.includes("workouts"),
+    includeCompliance: include.includes("compliance"),
+    includeFitness: include.includes("fitness"),
+  }));
+});
+```
+
+### Where Logic Lives
+
+- **Processors** (`data/processors/`) - pure business logic, no HTTP concerns
+- **Loaders** (`db/loaders.ts`) - centralized data fetching with transformation
+- **Routes** (`api/routes/`) - thin orchestrators, parameter extraction, response formatting
+- **Agents** - use processors + loaders, never duplicate processor logic
+
 ## Data Integrity & Type Safety
 
 ### Single source of truth for data mapping

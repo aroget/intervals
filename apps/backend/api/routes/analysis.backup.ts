@@ -359,7 +359,7 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
     await Promise.all([
       db
         .from("daily_analyses")
-        .select("readiness_score, block_effectiveness")
+        .select("readiness_score")
         .eq("athlete_id", athleteId)
         .eq("analysis_date", today)
         .single(),
@@ -394,38 +394,11 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
   else if (currentTsb >= -30 && currentTsb <= -10) tsbStatus = "Optimal";
   else tsbStatus = "Moderate";
 
-  // Get block score from today's analysis (single source of truth)
-  // If not available, get compliance for display purposes
-  let blockScore = todayAnalysis?.block_effectiveness ?? null;
-  let complianceRate = 100;
-  let workoutsCompleted = 0;
-  let workoutsPrescribed = 0;
-
-  if (blockScore === null) {
-    // Fallback: calculate if not in daily analysis (backward compatibility)
-    const blockResult = await getBlockAnalysis(athleteId, today, {
-      includeEffectiveness: true,
-      includeCompliance: true,
-    });
-    blockScore = blockResult.effectiveness?.score ?? 0;
-    complianceRate =
-      blockResult.compliance?.overallCompliance.complianceRate ?? 100;
-    workoutsCompleted =
-      blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0;
-    workoutsPrescribed =
-      blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0;
-  } else {
-    // Just get compliance for display (no recalculation of block score)
-    const blockResult = await getBlockAnalysis(athleteId, today, {
-      includeCompliance: true,
-    });
-    complianceRate =
-      blockResult.compliance?.overallCompliance.complianceRate ?? 100;
-    workoutsCompleted =
-      blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0;
-    workoutsPrescribed =
-      blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0;
-  }
+  // Get block effectiveness from composite processor
+  const blockResult = await getBlockAnalysis(athleteId, today, {
+    includeEffectiveness: true,
+    includeCompliance: true,
+  });
 
   return c.json({
     avgReadiness,
@@ -434,10 +407,13 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
     currentCtl: Math.round(currentCtl * 10) / 10,
     currentAtl: Math.round(currentAtl * 10) / 10,
     tsbStatus,
-    blockScore: Math.round(blockScore),
-    complianceRate,
-    workoutsCompleted,
-    workoutsPrescribed,
+    blockScore: blockResult.effectiveness?.score ?? 0,
+    complianceRate:
+      blockResult.compliance?.overallCompliance.complianceRate ?? 100,
+    workoutsCompleted:
+      blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0,
+    workoutsPrescribed:
+      blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0,
   });
 });
 

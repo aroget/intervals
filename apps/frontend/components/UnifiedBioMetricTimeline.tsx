@@ -22,7 +22,7 @@ import { getChartColors } from "@intervals/brand/colors";
 interface DataPoint {
   date: string;
   readinessScore: number | null;
-  tsb: number;
+  tsb: number | null;
   tss: number;
   formattedDate: string;
 }
@@ -78,12 +78,12 @@ export default function UnifiedBioMetricTimeline({
         (tsbRes.data ?? []).forEach((t: any) => {
           const existing = dataMap.get(t.date);
           if (existing) {
-            existing.tsb = t.tsb;
+            existing.tsb = t.tsb ?? 0;
           } else {
             dataMap.set(t.date, {
               date: t.date,
               readinessScore: null,
-              tsb: t.tsb,
+              tsb: t.tsb ?? 0,
               tss: t.tss ?? 0,
               formattedDate: new Date(t.date + "T00:00:00").toLocaleDateString(
                 "en-US",
@@ -248,7 +248,7 @@ export default function UnifiedBioMetricTimeline({
                         <span className="text-muted">TSB:</span>
                         <span className="font-semibold text-text tabular-nums">
                           {data.tsb > 0 ? "+" : ""}
-                          {data.tsb.toFixed(1)}
+                          {(data.tsb ?? 0).toFixed(1)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">

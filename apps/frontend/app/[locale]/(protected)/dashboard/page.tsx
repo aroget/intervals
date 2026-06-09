@@ -43,6 +43,7 @@ interface Analysis {
     trainingImplication?: string;
     flags: string[];
     recommendation: string;
+    blockScoreExplanation?: string;
   };
 }
 
@@ -846,11 +847,8 @@ export default function DashboardPage() {
                       {/* Tooltip - positioned absolutely to not affect layout */}
                       {showBlockScoreInfo && (
                         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 z-50 bg-bg-card border-2 border-teal rounded-lg shadow-xl p-3 text-xs text-text leading-relaxed pointer-events-none">
-                          {Math.round(analysis.block_effectiveness) >= 70
-                            ? "Strong score from consistent training and positive fitness adaptations."
-                            : Math.round(analysis.block_effectiveness) >= 50
-                              ? "Moderate score reflecting partial compliance and steady progress."
-                              : "Low score due to missed workouts or insufficient fitness gains."}
+                          {analysis.agent_output?.blockScoreExplanation ??
+                            "Block effectiveness reflects your training consistency and fitness adaptations over the past 4 weeks."}
                         </div>
                       )}
                     </div>

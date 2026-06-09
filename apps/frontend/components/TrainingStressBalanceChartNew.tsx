@@ -21,7 +21,7 @@ interface DataPoint {
   tss: number;
   atl: number;
   ctl: number;
-  tsb: number;
+  tsb: number | null;
 }
 
 const chartConfig = {
@@ -83,7 +83,7 @@ export default function TrainingStressBalanceChartNew({
   const latestPoint = allData[allData.length - 1];
   const currentCtl = latestPoint?.ctl ?? 0;
   const currentAtl = latestPoint?.atl ?? 0;
-  const currentTsb = latestPoint?.tsb ?? 0;
+  const currentTsb = latestPoint?.tsb ?? latestPoint?.ctl && latestPoint?.atl ? latestPoint.ctl - latestPoint.atl : 0;
   const currentDate = latestPoint?.date
     ? new Date(latestPoint.date + "T00:00:00").toLocaleDateString("en-US", {
         month: "short",
@@ -99,7 +99,8 @@ export default function TrainingStressBalanceChartNew({
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const getFormZoneColor = (tsb: number) => {
+  const getFormZoneColor = (tsb: number | null) => {
+    if (tsb === null) return colors.muted;
     if (tsb < -30) return colors.peach;
     if (tsb < -10) return colors.teal;
     if (tsb < 5) return colors.orange;
@@ -183,8 +184,8 @@ export default function TrainingStressBalanceChartNew({
                   }
                   if (name === "tsb") {
                     return [
-                      <span style={{ color: getFormZoneColor(data.tsb) }}>
-                        {data.tsb > 0 ? "+" : ""}
+                      <span style={{ color: getFormZoneColor(data.tsb ?? 0) }}>
+                        {(data.tsb ?? 0) > 0 ? "+" : ""}
                         {value}
                       </span>,
                       "Form (TSB)",
@@ -249,7 +250,7 @@ export default function TrainingStressBalanceChartNew({
             }}
           >
             {currentTsb > 0 ? "+" : ""}
-            {currentTsb.toFixed(1)}
+            {(currentTsb ?? 0).toFixed(1)}
           </p>
         </div>
       </div>

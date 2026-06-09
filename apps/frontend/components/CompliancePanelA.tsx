@@ -105,13 +105,13 @@ export default function CompliancePanelA({ athleteId }: { athleteId: string }) {
           Periodization Progression
         </h3>
         <div className="flex gap-2">
-          {data.weeklyReports.map((week) => {
+          {data.weeklyReports.map((week, idx) => {
             const isActive = week.weekNum === currentWeek.weekNum;
             const isFuture = week.weekNum > currentWeek.weekNum;
 
             return (
               <div
-                key={week.weekNum}
+                key={idx}
                 className={`flex-1 rounded-lg border p-3 transition-all ${
                   isActive
                     ? "border-teal bg-teal/10"
