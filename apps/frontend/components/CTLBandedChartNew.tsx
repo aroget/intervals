@@ -18,7 +18,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { getChartColors } from "@/lib/chartColors";
+import { getChartColors } from "@intervals/brand/colors";
 
 interface FitnessCheckpoint {
   date: string;

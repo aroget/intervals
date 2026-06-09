@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import { useTranslations } from "next-intl";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
 type Sport = "run" | "bike" | "swim" | "strength";
 
@@ -61,7 +60,7 @@ export default function WorkoutForm({ disciplines }: { disciplines: Sport[] }) {
     setPushed(false);
 
     try {
-      const res = await fetch(`${API}/workout/${ATHLETE_ID}/generate`, {
+      const res = await fetch(`${API_URL}/workout/${ATHLETE_ID}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sport, durationMin, notes: notes || undefined }),
@@ -86,7 +85,7 @@ export default function WorkoutForm({ disciplines }: { disciplines: Sport[] }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API}/workout/${ATHLETE_ID}/push`, {
+      const res = await fetch(`${API_URL}/workout/${ATHLETE_ID}/push`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workout: generated }),

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChatDrawer } from "@/components/ChatContext";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
 interface Message {
   role: "user" | "assistant";
@@ -61,7 +60,7 @@ export function ChatDrawer() {
 
   async function getOrCreateThread(): Promise<string> {
     if (threadId) return threadId;
-    const res = await fetch(`${API}/chat/threads`, {
+    const res = await fetch(`${API_URL}/chat/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ athleteId: ATHLETE_ID }),
@@ -86,7 +85,7 @@ export function ChatDrawer() {
 
     try {
       const tid = await getOrCreateThread();
-      const res = await fetch(`${API}/chat/threads/${tid}/messages`, {
+      const res = await fetch(`${API_URL}/chat/threads/${tid}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMessage }),

@@ -4,26 +4,7 @@
  */
 import type { IntervalsActivity, IntervalsWellness } from "./client.js";
 import type { Activity, WellnessLog } from "../../types.js";
-
-const SPORT_NORMALIZE: Record<string, string> = {
-  ride: "bike",
-  virtualride: "bike",
-  ebikeride: "bike",
-  run: "run",
-  virtualrun: "run",
-  trailrun: "run",
-  swim: "swim",
-  openwatersim: "swim",
-  weighttraining: "strength",
-  workout: "strength",
-  yoga: "strength",
-  walk: "run",
-};
-
-export function normalizeSport(type: string | null | undefined): string {
-  if (!type) return "other";
-  return SPORT_NORMALIZE[type.toLowerCase()] ?? type.toLowerCase();
-}
+import { normalizeSport } from "@intervals/shared/validators";
 
 /** Map Intervals.icu activity API response → database row (snake_case) */
 export function toActivityRow(a: IntervalsActivity, athleteId: string) {

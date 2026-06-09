@@ -23,7 +23,10 @@
     "hono": "^4.12.21",
     "openai": "^6.38.0",
     "ws": "^8.21.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@intervals/shared": "workspace:*",
+    "@intervals/brand": "workspace:*",
+    "@intervals/constants": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.0",

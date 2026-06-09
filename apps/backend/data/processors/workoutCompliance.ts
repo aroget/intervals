@@ -5,7 +5,7 @@
 
 import type { Activity } from "../../types.js";
 import { estimateTss } from "./workoutAdapter.js";
-import { normalizeSport } from "../intervals/mapper.js";
+import { normalizeSport } from "@intervals/shared/validators";
 
 export interface PrescribedSummary {
   date: string;

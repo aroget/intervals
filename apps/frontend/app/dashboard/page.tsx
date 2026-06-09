@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ATHLETE_ID } from "@/lib/api";
 import TSSGauge from "../../components/TSSGauge";
 import IntensityDistribution from "../../components/IntensityDistribution";
 import CombinedTrainingChart from "../../components/CombinedTrainingChart";
 import FormStatusBadge from "../../components/FormStatusBadge";
 import { WorkoutBadge } from "../../components/WorkoutChart";
-
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
 interface Day {
   date: string;

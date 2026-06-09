@@ -1,7 +1,6 @@
 import SettingsForm, { type ProfileData } from "./SettingsForm";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
 type Day =
   | "monday"
@@ -24,7 +23,7 @@ const DEFAULT_HOURS: Record<Day, number> = {
 
 async function getProfile(): Promise<ProfileData> {
   try {
-    const res = await fetch(`${API}/athlete/${ATHLETE_ID}`, {
+    const res = await fetch(`${API_URL}/athlete/${ATHLETE_ID}`, {
       next: { revalidate: 0 }, // always fresh — user is about to edit it
     });
     if (!res.ok) throw new Error("not found");

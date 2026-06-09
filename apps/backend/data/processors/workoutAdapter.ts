@@ -20,52 +20,6 @@ export interface WorkoutSuggestion {
 }
 
 /**
- * Maps readiness + TSB → training capacity.
- * Uses HRV trend to avoid single-day noise.
- */
-export function getTrainingCapacity(
-  readinessScore: number,
-  tsb: number,
-  hrvTrend: "rising" | "stable" | "declining" | "insufficient_data" | null,
-): TrainingCapacity {
-  // Adjust readiness by trend (declining HRV = red flag even if score OK)
-  let adjustedReadiness = readinessScore;
-  if (hrvTrend === "declining") adjustedReadiness -= 10;
-  if (hrvTrend === "rising") adjustedReadiness += 5;
-  // insufficient_data treated as neutral (no adjustment)
-
-  if (adjustedReadiness >= 85 && tsb >= -5) {
-    return {
-      maxTssPerHour: 90,
-      maxDurationMin: 120,
-      allowedIntensities: ["easy", "moderate", "hard", "threshold"],
-      reasoning: "Fresh state — full capacity for high-intensity work",
-    };
-  } else if (adjustedReadiness >= 65 && tsb >= -15) {
-    return {
-      maxTssPerHour: 65,
-      maxDurationMin: 90,
-      allowedIntensities: ["easy", "moderate"],
-      reasoning: "Moderate readiness — cap at moderate intensity",
-    };
-  } else if (adjustedReadiness >= 45) {
-    return {
-      maxTssPerHour: 40,
-      maxDurationMin: 60,
-      allowedIntensities: ["easy"],
-      reasoning: "Low readiness — easy aerobic only",
-    };
-  } else {
-    return {
-      maxTssPerHour: 0,
-      maxDurationMin: 30,
-      allowedIntensities: ["rest"],
-      reasoning: "Very low readiness — rest or active recovery only",
-    };
-  }
-}
-
-/**
  * Sport-specific TSS/hour estimates.
  * Cycling baseline, running ≈70%, swimming ≈60% (less accurate without power).
  */

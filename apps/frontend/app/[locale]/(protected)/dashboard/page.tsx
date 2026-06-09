@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
-
-const fetcher = (url: string) => fetch(url).then((r: any) => r.json());
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
+import { formatDuration, formatDistance, formatKcal } from "@/lib/formatters";
+import {
+  SPORT_ICONS,
+  READINESS_COLORS,
+  INTENSITY_BORDERS,
+} from "@/lib/constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,49 +90,6 @@ interface Activity {
 interface SportProgress {
   sport: string;
   summary: string;
-}
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const readinessColor: Record<string, string> = {
-  high: "text-teal",
-  moderate: "text-orange",
-  low: "text-peach",
-  rest: "text-orange",
-};
-
-const intensityBorder: Record<string, string> = {
-  easy: "border-border",
-  moderate: "border-peach",
-  hard: "border-orange",
-  rest: "border-border",
-};
-
-const SPORT_ICONS: Record<string, string> = {
-  run: "🏃",
-  bike: "🚴",
-  swim: "🏊",
-  strength: "🏋️",
-};
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function fmtDuration(secs: number | null): string {
-  if (!secs) return "—";
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m} min`;
-}
-
-function fmtDist(m: number | null): string {
-  if (!m) return "—";
-  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
-}
-
-function fmtKcal(joules: number | null): string {
-  if (!joules) return "—";
-  // 1 kJ ≈ 1 kcal (standard cycling/running approximation at ~25% efficiency)
-  return `~${Math.round(joules / 1000)} kcal`;
 }
 
 // ── WorkoutStructureView ──────────────────────────────────────────────────────
@@ -258,7 +217,7 @@ function PushButton({ workout }: { workout: Workout }) {
   async function push() {
     setState("pushing");
     try {
-      const res = await fetch(`${API}/workout/${ATHLETE_ID}/push`, {
+      const res = await fetch(`${API_URL}/workout/${ATHLETE_ID}/push`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workout: workout.agent_output }),
@@ -328,7 +287,7 @@ function ActivityModal({
 
   useEffect(() => {
     setLoadingAi(true);
-    fetch(`${API}/analysis/${ATHLETE_ID}/activity-analysis/${activity.id}`)
+    fetch(`${API_URL}/analysis/${ATHLETE_ID}/activity-analysis/${activity.id}`)
       .then((r: any) => r.json())
       .then((d) => setAiAnalysis(d.analysis ?? null))
       .catch(() => setAiAnalysis(null))
@@ -398,9 +357,12 @@ function ActivityModal({
           {/* Key metrics grid */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Duration", value: fmtDuration(activity.duration_secs) },
-              { label: "Distance", value: fmtDist(activity.distance_m) },
-              { label: "Energy", value: fmtKcal(activity.joules) },
+              {
+                label: "Duration",
+                value: formatDuration(activity.duration_secs),
+              },
+              { label: "Distance", value: formatDistance(activity.distance_m) },
+              { label: "Energy", value: formatKcal(activity.joules) },
               {
                 label: "TSS",
                 value:
@@ -553,7 +515,7 @@ function ActivityRow({
           </span>
         )}
         <span className="text-orange text-sm font-semibold tabular-nums">
-          {fmtDuration(activity.duration_secs)}
+          {formatDuration(activity.duration_secs)}
         </span>
         <svg
           className="w-4 h-4 text-muted group-hover:text-teal transition-colors"
@@ -579,7 +541,7 @@ export default function DashboardPage() {
     isLoading,
     mutate: mutateToday,
   } = useSWR<{ analysis: Analysis; workout: Workout }>(
-    `${API}/analysis/${ATHLETE_ID}/today`,
+    `${API_URL}/analysis/${ATHLETE_ID}/today`,
     fetcher,
     {
       refreshInterval: 0,
@@ -590,7 +552,7 @@ export default function DashboardPage() {
 
   const { data: wellnessData, isLoading: wellnessLoading } = useSWR<{
     wellness: WellnessRow[];
-  }>(`${API}/analysis/${ATHLETE_ID}/wellness`, fetcher, {
+  }>(`${API_URL}/analysis/${ATHLETE_ID}/wellness`, fetcher, {
     refreshInterval: 0,
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
@@ -598,14 +560,14 @@ export default function DashboardPage() {
 
   const { data: activitiesData, isLoading: activitiesLoading } = useSWR<{
     activities: Activity[];
-  }>(`${API}/athlete/${ATHLETE_ID}/activities?days=30`, fetcher, {
+  }>(`${API_URL}/athlete/${ATHLETE_ID}/activities?days=30`, fetcher, {
     refreshInterval: 0,
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
   const { data: progressData } = useSWR<{ sportProgress: SportProgress[] }>(
-    `${API}/analysis/${ATHLETE_ID}/sport-progress`,
+    `${API_URL}/analysis/${ATHLETE_ID}/sport-progress`,
     fetcher,
     {
       refreshInterval: 0,
@@ -618,11 +580,12 @@ export default function DashboardPage() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null,
   );
+  const [showBlockScoreInfo, setShowBlockScoreInfo] = useState(false);
 
   useEffect(() => {
     if (!isLoading && data && !data.workout && !analyzingToday) {
       setAnalyzingToday(true);
-      fetch(`${API}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
+      fetch(`${API_URL}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
         .then(() => mutateToday())
         .finally(() => setAnalyzingToday(false));
     }
@@ -679,7 +642,7 @@ export default function DashboardPage() {
         <p className="font-medium">No analysis found for today.</p>
         <button
           onClick={() =>
-            fetch(`${API}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
+            fetch(`${API_URL}/analysis/${ATHLETE_ID}/run`, { method: "POST" })
           }
           className="rounded-xl bg-orange hover:bg-peach px-5 py-2 text-white text-sm font-semibold transition-colors"
         >
@@ -853,9 +816,44 @@ export default function DashboardPage() {
                 {/* Block Effectiveness */}
                 {analysis?.block_effectiveness != null && (
                   <div className="space-y-1 text-center">
-                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-                      Block Score
-                    </p>
+                    <div className="relative flex items-center justify-center gap-1">
+                      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                        Block Score
+                      </p>
+                      {/* Info Icon */}
+                      <button
+                        onMouseEnter={() => setShowBlockScoreInfo(true)}
+                        onMouseLeave={() => setShowBlockScoreInfo(false)}
+                        onClick={() =>
+                          setShowBlockScoreInfo(!showBlockScoreInfo)
+                        }
+                        className="text-muted hover:text-text transition-colors"
+                        aria-label="Block Score Information"
+                      >
+                        <svg
+                          className="w-3 h-3"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+
+                      {/* Tooltip - positioned absolutely to not affect layout */}
+                      {showBlockScoreInfo && (
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 z-50 bg-bg-card border-2 border-teal rounded-lg shadow-xl p-3 text-xs text-text leading-relaxed pointer-events-none">
+                          {Math.round(analysis.block_effectiveness) >= 70
+                            ? "Strong score from consistent training and positive fitness adaptations."
+                            : Math.round(analysis.block_effectiveness) >= 50
+                              ? "Moderate score reflecting partial compliance and steady progress."
+                              : "Low score due to missed workouts or insufficient fitness gains."}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center justify-center gap-1">
                       <span className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
                         {Math.round(analysis.block_effectiveness)}
@@ -996,7 +994,7 @@ export default function DashboardPage() {
 
           {/* Workout Card */}
           <div
-            className={`rounded-2xl border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm ${workout ? (intensityBorder[workout.intensity] ?? "border-border") : "border-border"}`}
+            className={`rounded-2xl border bg-bg-card p-4 sm:p-6 space-y-4 shadow-sm ${workout ? (INTENSITY_BORDERS[workout.intensity] ?? "border-border") : "border-border"}`}
           >
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted">

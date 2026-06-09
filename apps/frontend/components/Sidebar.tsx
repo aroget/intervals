@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -8,8 +9,6 @@ import useSWR from "swr";
 import { useSidebar } from "@/components/SidebarContext";
 import { useChatDrawer } from "@/components/ChatContext";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const fetcher = (url: string) => fetch(url).then((r: any) => r.json());
 
 type SyncState = "idle" | "syncing" | "done" | "error";
 
@@ -35,7 +34,7 @@ export function Sidebar() {
     if (syncState === "syncing") return;
     setSyncState("syncing");
     try {
-      const res = await fetch(`${API}/sync`, { method: "POST" });
+      const res = await fetch(`${API_URL}/sync`, { method: "POST" });
       setSyncState(res.ok ? "done" : "error");
     } catch {
       setSyncState("error");

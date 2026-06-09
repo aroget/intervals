@@ -14,6 +14,7 @@ import {
 import {
   analyzeFitnessTrajectory,
   calculateBlockEffectiveness,
+  type SessionData,
 } from "../../data/processors/fitnessTrajectory.js";
 import { loadActivities, loadWellness } from "../../db/loaders.js";
 import { analyzeAllRecoveryPatterns } from "../../data/processors/recoveryPatterns.js";
@@ -465,7 +466,8 @@ analysis.get("/:athleteId/training-stress-balance", async (c) => {
   const athleteId = c.req.param("athleteId");
   const days = parseInt(c.req.query("days") ?? "60", 10);
 
-  const activities = await loadActivities(athleteId, days + 42); // Extra for CTL calculation
+  // Load extra activities for proper CTL/ATL initialization (need 42+ days of history)
+  const activities = await loadActivities(athleteId, days + 60);
 
   // Build daily TSS map
   const dailyTssMap = new Map<string, number>();
@@ -474,10 +476,31 @@ analysis.get("/:athleteId/training-stress-balance", async (c) => {
     dailyTssMap.set(a.activityDate, existing + (a.tss ?? 0));
   });
 
-  // Get date range
+  // Get date range for output
   const endDate = new Date();
   const startDate = new Date(endDate.getTime() - (days - 1) * 86_400_000);
 
+  // Initialize ATL/CTL from activities before the start date to get realistic baselines
+  let atl = 0;
+  let ctl = 0;
+
+  const atlDecay = 2 / (7 + 1);
+  const ctlDecay = 2 / (42 + 1);
+
+  // Warm up ATL/CTL from historical data (42 days before start date)
+  const warmupStart = new Date(startDate.getTime() - 42 * 86_400_000);
+  for (
+    let d = new Date(warmupStart);
+    d < startDate;
+    d.setDate(d.getDate() + 1)
+  ) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const tss = dailyTssMap.get(dateStr) ?? 0;
+    atl = atl + atlDecay * (tss - atl);
+    ctl = ctl + ctlDecay * (tss - ctl);
+  }
+
+  // Now calculate for the requested date range
   const data: {
     date: string;
     tss: number;
@@ -485,13 +508,6 @@ analysis.get("/:athleteId/training-stress-balance", async (c) => {
     ctl: number;
     tsb: number;
   }[] = [];
-
-  let atl = 0;
-  let ctl = 0;
-
-  // Calculate ATL (7-day exponential moving average) and CTL (42-day EMA)
-  const atlDecay = 2 / (7 + 1);
-  const ctlDecay = 2 / (42 + 1);
 
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().slice(0, 10);
@@ -584,11 +600,17 @@ analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
 
     let intensityFactor = a.intensityFactor ?? 0;
 
-    // If IF is missing/zero but we have TSS, estimate IF from TSS
-    // TSS = (sec × NP × IF) / (FTP × 3600) × 100
-    // For rough estimation: IF ≈ sqrt(TSS / (duration_hours × 100))
+    // If IF is missing/zero but we have TSS, use a more conservative estimation
+    // TSS/hour is a better proxy: <50=recovery, 50-75=endurance, 75-90=tempo, 90-110=threshold, >110=VO2
     if (intensityFactor === 0 && (a.tss ?? 0) > 0) {
-      intensityFactor = Math.sqrt((a.tss ?? 0) / (duration * 100));
+      const tssPerHour = (a.tss ?? 0) / duration;
+
+      // Map TSS/hour to approximate IF ranges
+      if (tssPerHour < 50) intensityFactor = 0.5;
+      else if (tssPerHour < 75) intensityFactor = 0.65;
+      else if (tssPerHour < 90) intensityFactor = 0.8;
+      else if (tssPerHour < 110) intensityFactor = 0.9;
+      else intensityFactor = 1.0;
     }
 
     // Default to zone 2 (endurance) if still no IF
@@ -751,6 +773,173 @@ analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
     monotonyScore,
     weeklyTss: weeklyTss.map((t) => Math.round(t)),
     overtrainingRiskDays: overtrainingDays,
+  });
+});
+
+/** GET /analysis/:athleteId/summary-metrics — aggregate metrics for analytics dashboard summary strip */
+analysis.get("/:athleteId/summary-metrics", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "30", 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Get athlete profile for cycle info
+  const profile = await loadAthleteProfile(athleteId);
+  if (!profile.cycleStartDate) {
+    return c.json({ error: "Cycle start date not set" }, 400);
+  }
+
+  // Fetch all required data in parallel
+  const [
+    { data: todayAnalysis },
+    { data: recentAnalyses },
+    activities,
+    { data: workouts },
+  ] = await Promise.all([
+    db
+      .from("daily_analyses")
+      .select("readiness_score")
+      .eq("athlete_id", athleteId)
+      .eq("analysis_date", today)
+      .single(),
+    db
+      .from("daily_analyses")
+      .select("readiness_score")
+      .eq("athlete_id", athleteId)
+      .gte(
+        "analysis_date",
+        new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10),
+      )
+      .order("analysis_date", { ascending: false }),
+    loadActivities(athleteId, 120), // Need more for CTL calculation
+    db
+      .from("prescribed_workouts")
+      .select(
+        "workout_date, sport, duration_min, intensity, session_type, had_deviation_flag, deviation_severity, agent_output",
+      )
+      .eq("athlete_id", athleteId)
+      .gte(
+        "workout_date",
+        new Date(Date.now() - 28 * 86_400_000).toISOString().slice(0, 10),
+      )
+      .order("workout_date"),
+  ]);
+
+  // Calculate average readiness over the period
+  const avgReadiness =
+    recentAnalyses && recentAnalyses.length > 0
+      ? Math.round(
+          recentAnalyses.reduce((sum, a) => sum + a.readiness_score, 0) /
+            recentAnalyses.length,
+        )
+      : (todayAnalysis?.readiness_score ?? 0);
+
+  // Get current TSB from most recent activity
+  const latestActivity = activities[0];
+  const currentCtl = latestActivity?.ctl ?? 0;
+  const currentAtl = latestActivity?.atl ?? 0;
+  const currentTsb = currentCtl - currentAtl;
+
+  // Determine TSB status
+  let tsbStatus = "Optimal";
+  if (currentTsb > 5) tsbStatus = "Fresh";
+  else if (currentTsb < -30) tsbStatus = "Fatigued";
+  else if (currentTsb >= -30 && currentTsb <= -10) tsbStatus = "Optimal";
+  else tsbStatus = "Moderate";
+
+  // Calculate block boundaries
+  const cycleStart = new Date(profile.cycleStartDate);
+  const todayDate = new Date(today);
+  const daysSinceStart = Math.floor(
+    (todayDate.getTime() - cycleStart.getTime()) / 86_400_000,
+  );
+  const currentBlockStart = new Date(cycleStart);
+  currentBlockStart.setDate(
+    cycleStart.getDate() + Math.floor(daysSinceStart / 28) * 28,
+  );
+  const blockStartStr = currentBlockStart.toISOString().slice(0, 10);
+  const blockEndDate = new Date(currentBlockStart);
+  blockEndDate.setDate(currentBlockStart.getDate() + 27);
+  const blockEndStr = blockEndDate.toISOString().slice(0, 10);
+
+  // Get block activities and calculate effectiveness
+  const blockActivities = activities.filter(
+    (a) => a.activityDate >= blockStartStr && a.activityDate <= blockEndStr,
+  );
+  const preBlockActivities = activities.filter(
+    (a) => a.activityDate < blockStartStr,
+  );
+  const baselineCtl =
+    preBlockActivities[preBlockActivities.length - 1]?.ctl ?? 70;
+
+  const checkpoints = analyzeFitnessTrajectory(
+    blockStartStr,
+    baselineCtl,
+    blockActivities,
+  );
+  const blockEndCtl =
+    checkpoints[checkpoints.length - 1]?.actualCtl ?? baselineCtl;
+
+  // Calculate compliance for the block
+  const blockWorkouts = (workouts ?? []).filter(
+    (w) => w.workout_date >= blockStartStr && w.workout_date <= blockEndStr,
+  );
+  const complianceReports = calculateBlockCompliance(
+    blockStartStr,
+    blockWorkouts,
+    blockActivities,
+  );
+  const totalCompleted = complianceReports.reduce(
+    (sum, r) => sum + r.workoutsCompleted,
+    0,
+  );
+  const totalPrescribed = complianceReports.reduce(
+    (sum, r) => sum + r.workoutsPrescribed,
+    0,
+  );
+  const complianceRate =
+    totalPrescribed > 0
+      ? Math.round((totalCompleted / totalPrescribed) * 100)
+      : 100;
+
+  const overtrainingDays = checkpoints.filter(
+    (c) => c.trend === "stalled",
+  ).length;
+
+  // Build session data for weighted compliance (includes deviation flags)
+  const sessions = blockWorkouts.map((w: any) => {
+    const sessionType =
+      w.session_type || w.agent_output?.sessionType || "endurance";
+    const workoutDate = w.workout_date;
+    const completed = blockActivities.some(
+      (a) => a.activityDate === workoutDate,
+    );
+    return {
+      sessionType,
+      completed,
+      hadDeviationFlag: w.had_deviation_flag ?? false,
+      deviationSeverity: w.deviation_severity ?? undefined,
+    };
+  });
+
+  const effectivenessScore = calculateBlockEffectiveness(
+    baselineCtl,
+    blockEndCtl,
+    complianceRate,
+    overtrainingDays,
+    sessions, // Pass session data for weighted compliance
+  );
+
+  return c.json({
+    avgReadiness,
+    currentReadiness: todayAnalysis?.readiness_score ?? avgReadiness,
+    currentTsb: Math.round(currentTsb * 10) / 10,
+    currentCtl: Math.round(currentCtl * 10) / 10,
+    currentAtl: Math.round(currentAtl * 10) / 10,
+    tsbStatus,
+    blockScore: Math.round(effectivenessScore),
+    complianceRate,
+    workoutsCompleted: totalCompleted,
+    workoutsPrescribed: totalPrescribed,
   });
 });
 

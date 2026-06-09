@@ -1,0 +1,21 @@
+{
+  "name": "@intervals/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./badge": "./src/badge.tsx",
+    "./button": "./src/button.tsx",
+    "./card": "./src/card.tsx",
+    "./selector": "./src/selector.tsx",
+    "./spinner": "./src/spinner.tsx"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.3"
+  }
+}

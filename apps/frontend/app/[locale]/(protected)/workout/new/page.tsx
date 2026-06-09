@@ -1,7 +1,6 @@
 import WorkoutForm from "./WorkoutForm";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
 type Sport = "run" | "bike" | "swim" | "strength";
 
@@ -9,7 +8,7 @@ const FALLBACK_DISCIPLINES: Sport[] = ["run", "bike"];
 
 async function getDisciplines(): Promise<Sport[]> {
   try {
-    const res = await fetch(`${API}/athlete/${ATHLETE_ID}`, {
+    const res = await fetch(`${API_URL}/athlete/${ATHLETE_ID}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return FALLBACK_DISCIPLINES;

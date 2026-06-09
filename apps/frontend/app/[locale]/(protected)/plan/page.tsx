@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
-const ATHLETE_ID = process.env.NEXT_PUBLIC_ATHLETE_ID ?? "";
 
-const fetcher = (url: string) => fetch(url).then((r: any) => r.json());
 
 interface UpcomingWorkout {
   workout_date: string;
@@ -203,7 +201,7 @@ function PlanSkeleton() {
 
 export default function PlanPage() {
   const { data, isLoading, mutate } = useSWR<{ upcoming: UpcomingWorkout[] }>(
-    `${API}/analysis/${ATHLETE_ID}/upcoming`,
+    `${API_URL}/analysis/${ATHLETE_ID}/upcoming`,
     fetcher,
     { refreshInterval: 120_000 },
   );
@@ -213,7 +211,7 @@ export default function PlanPage() {
   async function regenerate() {
     setGenerating(true);
     try {
-      await fetch(`${API}/analysis/${ATHLETE_ID}/generate-week`, {
+      await fetch(`${API_URL}/analysis/${ATHLETE_ID}/generate-week`, {
         method: "POST",
       });
       setTimeout(() => {

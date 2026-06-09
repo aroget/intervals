@@ -1,6 +1,54 @@
 # Intervals Agent Ecosystem — Project Guidelines
 
-## Architecture
+## Monorepo Architecture
+
+**Package Manager**: pnpm v10.20.0 with workspace protocol
+
+**Workspace Structure**:
+
+```
+apps/
+  ├── backend/      → Hono API server + agent orchestration
+  └── frontend/     → Next.js 16 App Router UI
+packages/
+  ├── shared/       → Core types, formatters, validators
+  ├── brand/        → Design system & brand guidelines
+  ├── constants/    → Business logic constants (sports, intensity, cycles)
+  ├── ui/           → Reusable React components
+  └── db/           → Database utilities (future)
+```
+
+### Tech Stack with Versions
+
+**Frontend** (`apps/frontend/`):
+
+- **Next.js**: 16.2.6 (App Router, React Server Components)
+- **React**: 19.2.4 with React DOM 19.2.4
+- **TypeScript**: 5.x (strict mode)
+- **Tailwind CSS**: v4 (with @tailwindcss/postcss)
+- **Data Fetching**: SWR 2.4.1 (`refreshInterval: 0`, `revalidateOnFocus: false`)
+- **Charts**: Recharts 3.8.1
+- **i18n**: next-intl 4.12.0
+- **Theming**: next-themes 0.4.6
+
+**Backend** (`apps/backend/`):
+
+- **Runtime**: Node.js with tsx watch mode
+- **Framework**: Hono v4.12.21 (lightweight web framework)
+- **Database**: Supabase (@supabase/supabase-js 2.106.0)
+- **LLM**: OpenAI SDK 6.38.0 (model-agnostic adapter)
+- **Validation**: Zod 4.4.3
+- **WebSocket**: ws 8.21.0
+- **Type Safety**: TypeScript 5.x ESM (`"type": "module"`)
+
+**Shared Packages**:
+
+- `@intervals/shared` → Zod schemas, type definitions, formatters, validators
+- `@intervals/brand` → Brand guidelines, colors (light/dark), design tokens
+- `@intervals/constants` → SPORTS metadata, INTENSITY_LEVELS, training cycles
+- `@intervals/ui` → Badge, Button, Card, Selector, Spinner components (React 19)
+
+## Architecture Patterns
 
 Multi-agent fitness coaching system built on Intervals.icu data with daily adaptation via GitHub Actions cron.
 
@@ -13,7 +61,9 @@ Multi-agent fitness coaching system built on Intervals.icu data with daily adapt
 
 This architecture provides **daily adaptation**: today's workout always reflects current recovery status. No future prescriptions are generated - the system focuses on adapting to the athlete's actual state each morning.
 
-Key directories:
+### Key Directories
+
+**Backend**:
 
 - `apps/backend/agents/llm/` — model-agnostic adapter (all LLM calls go through here)
 - `apps/backend/agents/recovery/` — Recovery Analysis Agent
@@ -25,10 +75,19 @@ Key directories:
 - `apps/backend/data/sync/pipeline.ts` — Intervals.icu → Supabase sync (entry: `pnpm sync`)
 - `apps/backend/data/intervals/mapper.ts` — centralized data transformation (Intervals.icu ↔ DB)
 - `apps/backend/db/schema.sql` — Supabase schema including pgvector for semantic memory
-- `apps/backend/api/` — Hono REST API
-- `apps/frontend/` — Next.js 16 App Router UI
+- `apps/backend/db/loaders.ts` — centralized data loaders (use these, not raw queries)
+- `apps/backend/utils/dates.ts` — date utilities (`getTodayDate()`, `getDaysAgo()`)
+- `apps/backend/utils/http.ts` — HTTP helpers (`getAthleteId()`, `getQueryInt()`)
+- `apps/backend/api/` — Hono REST API routes
 
-## Critical Rules
+**Frontend**:
+
+- `apps/frontend/app/` — Next.js 16 App Router pages
+- `apps/frontend/app/[locale]/(protected)/` — Authenticated routes (dashboard, analytics, etc.)
+- `apps/frontend/components/` — React components (each file = 1 component, <500 lines)
+- `apps/frontend/lib/` — Frontend utilities (api.ts, formatters.ts, constants.ts)
+
+## Critical Coding Rules
 
 ### LLMs never do arithmetic
 
@@ -74,34 +133,236 @@ Week 1 = base, Week 2 = build, Week 3 = peak, Week 4 = recovery. Logic is in `ap
 
 **`apps/backend/data/intervals/mapper.ts`** is the ONLY place where Intervals.icu API data is transformed to/from database rows.
 
-**Functions:**
+**Functions**:
 
 - `normalizeSport(type)` — canonical sport name normalization (ride→bike, virtualrun→run, etc.)
 - `toActivityRow(activity, athleteId)` — Intervals.icu API → DB row (snake_case)
 - `fromActivityRow(row)` — DB row (snake_case) → Activity type (camelCase)
 - `toWellnessRow(entry, athleteId)` — Intervals.icu wellness → DB row
-- `fromWellnessRow(apps/frontend/` — a Next.js 16 App Router project with Tailwind CSS.
+- `fromWellnessRow(row)` — DB row → Wellness type
 
-- `apps/frontend/app/page.tsx` — landing page
-- `apps/frontend/app/dashboard/page.tsx` — training dashboard with 4-week block + compliance metrics
-- `apps/frontend/app/chat/page.tsx` — real-time chat UI with the coach agent
-- `apps/frontend/components/BlockOverview.tsx` — 4-week calendar with workouts/activities/deviations
-- `apps/frontend/components/ComplianceMetrics.tsx` — effectiveness score, compliance tracking, fitness trajectory
-- `apps/hen adding new fields, update BOTH `toRow`and`fromRow` functions
-- Don't hardcode field values to `null` — map them from the DB row
-  apps/backend/db/schema.sql`.
+**Rule**: When adding new fields, update BOTH `toRow` and `fromRow` functions. Don't hardcode field values to `null` — map them from the DB row.
 
-Run the SQL in the Supabase SQL editor to initialise. Requires the `vector` extension enabled (Dashboard → Database → Extensions).
+### Use centralized loaders, not raw queries
 
-Semantic memory is stored in `agent_memories` with a 1536-dimension vector column. If switching to an embedding model with different dimensions, update the `vector(N)` in `schema.sql` and `LLM_EMBED_MODEL` in `.env`.
+**Preferred**: Import from `apps/backend/db/loaders.ts`:
 
-## Adding a New Provider
+- `loadProfile(athleteId)` — athlete profile with cycle info
+- `loadWellness(athleteId, days)` — wellness logs (camelCase)
+- `loadActivities(athleteId, days, beforeDate?)` — activities (camelCase)
 
-1. Set `LLM_BASE_URL` to the provider's OpenAI-compatible endpoint
-2. Set `LLM_API_KEY` and `LLM_MODEL`
-3. No code changes required
+**Why**: Loaders handle snake_case → camelCase transformation automatically via mapper.ts.
 
-If the provider is NOT OpenAI-compatible, implement a new adapter in `apps/backend
+**Exception**: API routes that return data directly to frontend MAY query DB directly if returning raw snake_case data to UI. Document this decision in code comments.
+
+### Static imports, not dynamic
+
+Use static imports at the top of files. Dynamic imports (`await import(...)`) should only be used for:
+
+- Lazy-loading heavy dependencies
+- Avoiding circular dependencies
+- Code splitting in frontend
+
+**WRONG**:
+
+```typescript
+// Inside function body
+const { calculateReadiness } = await import("../data/processors/readiness.js");
+```
+
+**CORRECT**:
+
+```typescript
+// Top of file
+import { calculateReadiness } from "../data/processors/readiness.js";
+```
+
+### Use centralized utilities
+
+**Backend**:
+
+- Date operations → `apps/backend/utils/dates.ts` (`getTodayDate()`, `getDaysAgo()`)
+- HTTP helpers → `apps/backend/utils/http.ts` (`getAthleteId()`, `getQueryInt()`)
+- Never write `new Date().toISOString().slice(0, 10)` — use `getTodayDate()`
+- Never write `c.req.param("athleteId")` — use `getAthleteId(c)`
+
+**Frontend**:
+
+- API config → `apps/frontend/lib/api.ts` (`API_URL`, `ATHLETE_ID`, `fetcher`)
+- Formatters → `apps/frontend/lib/formatters.ts` (re-exports from `@intervals/shared`)
+- Constants → `apps/frontend/lib/constants.ts` (re-exports from `@intervals/constants`)
+
+## Frontend Component Architecture
+
+### Component File Rules
+
+1. **One component per file** — never define multiple exported components in same file
+2. **Max 500 lines** — split larger components into smaller, focused ones
+3. **"use client" directive** — all interactive components must have `"use client"` at top
+4. **Explicit imports** — import all dependencies, never rely on globals
+5. **TypeScript interfaces** — define props with clear interfaces
+6. **Remove unused code** — clean up unused interfaces, imports, and functions
+
+### Component Composition Pattern
+
+**Example**: ComplianceMetrics (refactored from 788 → 191 lines)
+
+```typescript
+// Main orchestrator component
+export default function ComplianceMetrics({ athleteId }: Props) {
+  // State management
+  // Data fetching
+  return (
+    <>
+      <WorkoutDetailModal ... />
+      <div>
+        <BlockHeader ... />
+        <WeekNavigator ... />
+        <div className="grid">
+          <WeekMetrics ... />
+          <DailySchedule ... />
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+Each child component is in its own file:
+
+- `WorkoutDetailModal.tsx` (206 lines)
+- `BlockHeader.tsx` (58 lines)
+- `WeekNavigator.tsx` (108 lines)
+- `WeekMetrics.tsx` (123 lines)
+- `DailySchedule.tsx` (143 lines)
+
+### Shared Components to Reuse
+
+Import from `@intervals/ui`:
+
+- `Badge` — generic badge component
+- `FormStatusBadge` — TSB-based training form status
+- `WorkoutBadge` — workout intensity badge
+- `Button` — with loading states and variants
+- `Card`, `CardHeader`, `CardSection` — consistent card layouts
+- `TimeframeSelector`, `HorizontalSelector` — filter controls
+- `Spinner`, `LoadingState`, `Skeleton` — loading states
+
+**Example**:
+
+```typescript
+import { Card, CardHeader } from "@intervals/ui/card";
+import { Badge } from "@intervals/ui/badge";
+import { LoadingState } from "@intervals/ui/spinner";
+
+<Card>
+  <CardHeader title="Workout Plan" description="This week's sessions" />
+  {loading ? <LoadingState /> : <WorkoutList />}
+</Card>
+```
+
+## Brand Guidelines & Design System
+
+### Import from Brand Package
+
+**Colors & Theme**:
+
+```typescript
+import { getChartColors } from "@intervals/brand/colors";
+import { brand } from "@intervals/brand";
+
+const colors = getChartColors(); // Respects light/dark mode
+// colors.teal, colors.mint, colors.orange, colors.peach, colors.bg, etc.
+```
+
+**Brand Identity** (from `@intervals/brand/guidelines`):
+
+- **Persona**: Evidence-based coach, precise but never cold
+- **Voice**: Direct, confident, data-grounded
+- **Tone**: Professional but approachable, motivating without hype
+- **Colors**: Teal (primary), Mint, Orange, Peach accents
+
+### Design Tokens
+
+**Colors** (Tailwind classes):
+
+- `text-teal` — primary brand color, positive states
+- `text-orange` — moderate intensity, caution
+- `text-orange-bright` — high intensity, peak efforts
+- `text-peach` — recovery, low intensity
+- `text-mint` — accent, secondary actions
+- `bg-bg` — main background
+- `bg-bg-card` — card backgrounds
+- `bg-bg-assistant` — assistant/secondary backgrounds
+- `text-text` — primary text
+- `text-muted` — secondary text
+- `border-border` — consistent borders
+
+**Typography**:
+
+- Headers: `font-bold tracking-[0.15em] uppercase`
+- Body: `text-sm leading-relaxed`
+- Metrics: `tabular-nums` for numbers
+
+**Spacing**:
+
+- Cards: `rounded-2xl px-4 sm:px-6 py-4 sm:py-5`
+- Sections: `space-y-6` between major blocks
+- Grid gaps: `gap-4` or `gap-6`
+
+### Chart Styling
+
+Use Recharts with brand colors:
+
+```typescript
+import { getChartColors } from "@intervals/brand/colors";
+
+const colors = getChartColors();
+
+<LineChart>
+  <Line dataKey="ctl" stroke={colors.teal} />
+  <Line dataKey="atl" stroke={colors.orange} />
+  <Area fill={colors.teal} fillOpacity={0.1} />
+</LineChart>
+```
+
+## Database Schema
+
+### Core Tables
+
+- `athletes` — athlete profiles (name, intervals_icu_id, cycle_start_date)
+- `wellness` — daily HRV, RHR, sleep data (snake_case columns)
+- `activities` — completed workouts from Intervals.icu (snake_case)
+- `prescribed_workouts` — AI-generated workout plans
+- `daily_analyses` — recovery analysis + readiness scores
+- `agent_memories` — semantic memory with pgvector embeddings
+- `chat_messages` — conversational history
+
+### Column Naming
+
+- **Database**: snake_case (`activity_date`, `avg_hr`, `duration_secs`)
+- **TypeScript**: camelCase after transformation (`activityDate`, `avgHr`, `durationSecs`)
+- **Transformation**: Always goes through `mapper.ts` loaders
+
+### Vector Search
+
+Semantic memory uses pgvector with 1536-dimension embeddings (OpenAI text-embedding-3-small):
+
+```sql
+CREATE TABLE agent_memories (
+  id UUID PRIMARY KEY,
+  athlete_id UUID REFERENCES athletes(id),
+  memory_type TEXT,
+  content TEXT,
+  embedding vector(1536),
+  created_at TIMESTAMPTZ
+);
+
+CREATE INDEX ON agent_memories USING ivfflat (embedding vector_cosine_ops);
+```
+
+## Code Quality Checklist
+
 **Example violation (WRONG):**
 
 ```typescript
@@ -129,15 +390,14 @@ Use static imports at the top of files. Dynamic imports (`await import(...)`) sh
 
 ```typescript
 // Inside function body
-const { getTrainingCapacity } =
-  await import("../data/processors/workoutAdapter.js");
+const { calculateReadiness } = await import("../data/processors/readiness.js");
 ```
 
 **CORRECT:**
 
 ```typescript
 // Top of file
-import { getTrainingCapacity } from "../data/processors/workoutAdapter.js";
+import { calculateReadiness } from "../data/processors/readiness.js";
 ```
 
 ### Database queries should use loaders
@@ -185,46 +445,10 @@ Before marking any feature complete:
 
 Week 1 = base, Week 2 = build, Week 3 = peak, Week 4 = recovery. Logic is in `apps/backend/data/processors/cycleTracker.ts`. Week 4 is always a recovery week — coach agent must reduce volume 40-50% and avoid hard sessions.
 
-## Build and Run
-
-```bash
-pnpm install
-pnpm dev          # start API server with hot reload (port 7000)
-pnpm dev:ui       # start Next.js frontend with hot reload (port 7001)
-pnpm sync         # manual Intervals.icu data sync
-pnpm analyze      # run daily Recovery + Coach agents
-pnpm build        # compile API to dist/
-```
-
-Frontend lives in `frontend/` — a Next.js 16 App Router project with Tailwind CSS.
-
-- `frontend/app/page.tsx` — landing page
-- `frontend/app/dashboard/page.tsx` — today's recovery + prescribed workout
-- `frontend/app/chat/page.tsx` — real-time chat UI with the coach agent
-- `frontend/.env.local` — `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_ATHLETE_ID`
-
-## Database
-
-Supabase (Postgres + pgvector). Schema: `src/db/schema.sql`.
-
-Run the SQL in the Supabase SQL editor to initialise. Requires the `vector` extension enabled (Dashboard → Database → Extensions).
-
-Semantic memory is stored in `agent_memories` with a 1536-dimension vector column. If switching to an embedding model with different dimensions, update the `vector(N)` in `schema.sql` and `LLM_EMBED_MODEL` in `.env`.
-
-## Adding a New Provider
-
-1. Set `LLM_BASE_URL` to the provider's OpenAI-compatible endpoint
-2. Set `LLM_API_KEY` and `LLM_MODEL`
-3. No code changes required
-
-If the provider is NOT OpenAI-compatible, implement a new adapter in `src/agents/llm/` that exports the same `chat`, `structured`, `runWithTools`, `embed` functions.
-
 ## Conventions using mapper.ts
 
 - Agent output types are exported from `schema.ts` as both the Zod schema and the inferred TS type
 - All files use ESM (`import/export`), `.js` extension on relative imports (required for Node ESM)
 - `dotenv/config` is imported at entry points only (`apps/backend/index.ts`, `daily.ts`, `pipeline.ts`)
 - Use static imports at file top, not dynamic imports inside functions (unless for lazy loading)
-- Always run `pnpm build` in apps/backend/ before considering a feature completetype
-- All files use ESM (`import/export`), `.js` extension on relative imports (required for Node ESM)
-- `dotenv/config` is imported at entry points only (`src/index.ts`, `daily.ts`, `pipeline.ts`)
+- Always run `pnpm build` in apps/backend/ before considering a feature complete

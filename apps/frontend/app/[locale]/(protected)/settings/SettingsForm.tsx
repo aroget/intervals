@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { useTheme } from "next-themes";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7000";
 
 type Sport = "run" | "bike" | "swim" | "strength";
 type Day =
@@ -149,7 +148,11 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only using theme after mount
+  useEffect(() => setMounted(true), []);
 
   const activeTab = (searchParams.get("tab") as Tab) ?? "account";
 
@@ -201,7 +204,7 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
     setSaveError(null);
     setSaved(false);
     try {
-      const res = await fetch(`${API}/athlete`, {
+      const res = await fetch(`${API_URL}/athlete`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -237,7 +240,7 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
     setDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`${API}/athlete/${form.athleteId}`, {
+      const res = await fetch(`${API_URL}/athlete/${form.athleteId}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -328,25 +331,32 @@ export default function SettingsForm({ profile }: { profile: ProfileData }) {
                   { value: "light", label: "☀️ Light", icon: "☀️" },
                   { value: "dark", label: "🌙 Dark", icon: "🌙" },
                   { value: "system", label: "💻 System", icon: "💻" },
-                ].map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => {
-                      set(
-                        "preferredTheme",
-                        value as "light" | "dark" | "system",
-                      );
-                      setTheme(value);
-                    }}
-                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all border ${
-                      form.preferredTheme === value
-                        ? "bg-teal text-white border-teal shadow-sm"
-                        : "bg-bg border-border text-muted hover:text-text hover:border-teal/40"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+                ].map(({ value, label }) => {
+                  // Use form.preferredTheme until mounted to prevent hydration mismatch
+                  const isActive = mounted
+                    ? theme === value
+                    : form.preferredTheme === value;
+
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        set(
+                          "preferredTheme",
+                          value as "light" | "dark" | "system",
+                        );
+                        setTheme(value);
+                      }}
+                      className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all border ${
+                        isActive
+                          ? "bg-teal text-white border-teal shadow-sm"
+                          : "bg-bg border-border text-muted hover:text-text hover:border-teal/40"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </Field>
           </Section>
