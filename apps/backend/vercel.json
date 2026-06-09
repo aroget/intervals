@@ -1,17 +1,39 @@
 {
   "version": 2,
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @intervals/shared build && pnpm --filter @intervals/brand build && pnpm --filter @intervals/constants build",
+  "installCommand": "pnpm install --frozen-lockfile && pnpm --filter @intervals/shared build && pnpm --filter @intervals/brand build && pnpm --filter @intervals/constants build",
   "functions": {
-    "api/**/*.ts": {
+    "api/index.ts": {
       "memory": 1024,
-      "maxDuration": 10,
-      "includeFiles": "../../packages/**"
+      "maxDuration": 300
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/api/index"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/chat/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/event-stream; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-transform"
+        },
+        {
+          "key": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "key": "X-Accel-Buffering",
+          "value": "no"
+        }
+      ]
     }
   ]
 }
