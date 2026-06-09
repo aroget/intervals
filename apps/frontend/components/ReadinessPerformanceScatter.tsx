@@ -77,7 +77,7 @@ export default function ReadinessPerformanceScatter({
       case "run":
         return colors.orange;
       case "swim":
-        return colors.mint;
+        return colors.peach;
       default:
         return colors.muted;
     }
@@ -132,7 +132,7 @@ export default function ReadinessPerformanceScatter({
           <div className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: colors.mint }}
+              style={{ backgroundColor: colors.peach }}
             />
             <span className="text-muted">Other</span>
           </div>
@@ -183,7 +183,7 @@ export default function ReadinessPerformanceScatter({
 
           <ChartTooltip
             cursor={{ strokeDasharray: "3 3" }}
-            content={({ active, payload }) => {
+            content={({ active, payload }: any) => {
               if (!active || !payload || !payload.length) return null;
               const data = payload[0].payload;
 
@@ -257,7 +257,7 @@ export default function ReadinessPerformanceScatter({
             <Scatter
               name="Other"
               data={otherData}
-              fill={colors.mint}
+              fill={colors.peach}
               fillOpacity={0.6}
             />
           )}

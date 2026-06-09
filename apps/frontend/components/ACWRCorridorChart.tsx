@@ -197,7 +197,7 @@ export default function ACWRCorridorChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value, name, data) => {
+                formatter={(value, name, data: any) => {
                   if (name === "acwr") {
                     const zone = data.riskZone;
                     const textColor =
@@ -217,7 +217,7 @@ export default function ACWRCorridorChart({
                   }
                   return value;
                 }}
-                labelFormatter={(label, payload) => {
+                labelFormatter={(label, payload: any) => {
                   const data = payload[0]?.payload;
                   if (!data) return label;
                   return (

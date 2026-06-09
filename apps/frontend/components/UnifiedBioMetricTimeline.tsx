@@ -216,7 +216,7 @@ export default function UnifiedBioMetricTimeline({
             />
 
             <ChartTooltip
-              content={({ active, payload }) => {
+              content={({ active, payload }: any) => {
                 if (!active || !payload || payload.length === 0) return null;
                 const data = payload[0].payload;
 

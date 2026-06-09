@@ -108,125 +108,122 @@ const ChartTooltipContent = React.forwardRef<
       nameKey?: string;
       labelKey?: string;
     }
->(
-  (
-    {
-      active,
-      payload,
-      className,
-      indicator = "dot",
-      hideLabel = false,
-      hideIndicator = false,
-      label,
-      labelFormatter,
-      labelClassName,
-      formatter,
-      color,
-      nameKey,
-      labelKey,
-    },
-    ref,
-  ) => {
-    const { config } = useChart();
+>((props: any, ref) => {
+  const {
+    active,
+    payload,
+    className,
+    indicator = "dot",
+    hideLabel = false,
+    hideIndicator = false,
+    label,
+    labelFormatter,
+    labelClassName,
+    formatter,
+    color,
+    nameKey,
+    labelKey,
+  } = props;
+  const { config } = useChart();
 
-    const tooltipLabel = React.useMemo(() => {
-      if (hideLabel || !payload?.length) {
-        return null;
-      }
-
-      const [item] = payload;
-      const key = `${labelKey || item.dataKey || item.name || "value"}`;
-      const itemConfig = config[key as keyof typeof config];
-      const value =
-        !labelKey && typeof label === "string"
-          ? config[label as keyof typeof config]?.label || label
-          : itemConfig?.label;
-
-      if (labelFormatter) {
-        return (
-          <div className={labelClassName}>{labelFormatter(value, payload)}</div>
-        );
-      }
-
-      if (!value) {
-        return null;
-      }
-
-      return <div className={labelClassName}>{value}</div>;
-    }, [
-      label,
-      labelFormatter,
-      payload,
-      hideLabel,
-      labelClassName,
-      config,
-      labelKey,
-    ]);
-
-    if (!active || !payload?.length) {
+  const tooltipLabel = React.useMemo(() => {
+    if (hideLabel || !payload?.length) {
       return null;
     }
 
-    return (
-      <div
-        ref={ref}
-        className={`rounded-lg border border-border bg-bg-card p-2 shadow-lg ${className || ""}`}
-      >
-        {tooltipLabel ? (
-          <div className="mb-2 text-xs font-semibold text-text">
-            {tooltipLabel}
-          </div>
-        ) : null}
-        <div className="grid gap-1.5">
-          {payload.map((item, index) => {
-            const key = `${nameKey || item.name || item.dataKey || "value"}`;
-            const itemConfig = config[key as keyof typeof config];
-            const indicatorColor = color || item.payload.fill || item.color;
+    const [item] = payload;
+    const key = `${labelKey || item.dataKey || item.name || "value"}`;
+    const itemConfig = config[key as keyof typeof config];
+    const value =
+      !labelKey && typeof label === "string"
+        ? config[label as keyof typeof config]?.label || label
+        : itemConfig?.label;
 
-            return (
-              <div
-                key={item.dataKey}
-                className="flex items-center justify-between gap-4 text-xs"
-              >
-                <div className="flex items-center gap-1.5">
-                  {!hideIndicator && (
-                    <div
-                      className={`shrink-0 rounded-full ${
-                        indicator === "dot" ? "h-2 w-2" : "h-0.5 w-4"
-                      } ${indicator === "dashed" ? "border border-dashed" : ""}`}
-                      style={{
-                        backgroundColor: indicatorColor,
-                      }}
-                    />
-                  )}
-                  <span className="text-muted">
-                    {itemConfig?.label || item.name}
-                  </span>
-                </div>
-                <span className="font-semibold tabular-nums text-text">
-                  {formatter
-                    ? formatter(item.value, item.name, item, index, payload)
-                    : item.value}
+    if (labelFormatter) {
+      return (
+        <div className={labelClassName}>{labelFormatter(value, payload)}</div>
+      );
+    }
+
+    if (!value) {
+      return null;
+    }
+
+    return <div className={labelClassName}>{value}</div>;
+  }, [
+    label,
+    labelFormatter,
+    payload,
+    hideLabel,
+    labelClassName,
+    config,
+    labelKey,
+  ]);
+
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={`rounded-lg border border-border bg-bg-card p-2 shadow-lg ${className || ""}`}
+    >
+      {tooltipLabel ? (
+        <div className="mb-2 text-xs font-semibold text-text">
+          {tooltipLabel}
+        </div>
+      ) : null}
+      <div className="grid gap-1.5">
+        {payload.map((item: any, index: number) => {
+          const key = `${nameKey || item.name || item.dataKey || "value"}`;
+          const itemConfig = config[key as keyof typeof config];
+          const indicatorColor = color || item.payload.fill || item.color;
+
+          return (
+            <div
+              key={item.dataKey}
+              className="flex items-center justify-between gap-4 text-xs"
+            >
+              <div className="flex items-center gap-1.5">
+                {!hideIndicator && (
+                  <div
+                    className={`shrink-0 rounded-full ${
+                      indicator === "dot" ? "h-2 w-2" : "h-0.5 w-4"
+                    } ${indicator === "dashed" ? "border border-dashed" : ""}`}
+                    style={{
+                      backgroundColor: indicatorColor,
+                    }}
+                  />
+                )}
+                <span className="text-muted">
+                  {itemConfig?.label || item.name}
                 </span>
               </div>
-            );
-          })}
-        </div>
+              <span className="font-semibold tabular-nums text-text">
+                {formatter
+                  ? formatter(item.value, item.name, item, index, payload)
+                  : item.value}
+              </span>
+            </div>
+          );
+        })}
       </div>
-    );
-  },
-);
+    </div>
+  );
+});
 ChartTooltipContent.displayName = "ChartTooltip";
 
 const ChartLegend = RechartsPrimitive.Legend;
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-      hideIcon?: boolean;
-      nameKey?: string;
-    }
+  React.ComponentProps<"div"> & {
+    payload?: any[];
+    verticalAlign?: "top" | "middle" | "bottom";
+    hideIcon?: boolean;
+    nameKey?: string;
+  }
 >(
   (
     { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
@@ -243,7 +240,7 @@ const ChartLegendContent = React.forwardRef<
         ref={ref}
         className={`flex items-center justify-center gap-4 ${className || ""}`}
       >
-        {payload.map((item) => {
+        {payload.map((item: any) => {
           const key = `${nameKey || item.dataKey || "value"}`;
           const itemConfig = config[key as keyof typeof config];
 

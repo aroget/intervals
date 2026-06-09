@@ -209,7 +209,7 @@ export default function AerobicDecouplingChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value, name) => {
+                formatter={(value: any, name: any) => {
                   if (value == null) return null;
                   const label = name === "bike" ? " Cycling" : " Running";
                   return [
@@ -221,7 +221,7 @@ export default function AerobicDecouplingChart({
                     label,
                   ];
                 }}
-                labelFormatter={(label, payload) => {
+                labelFormatter={(label: any, payload: any) => {
                   const data = payload[0]?.payload;
                   if (!data) return label;
                   return (

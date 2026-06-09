@@ -182,7 +182,7 @@ export default function BlockEffectivenessChartNew({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  formatter={(value) => [`${value}`, "CTL"]}
+                  formatter={(value: any) => [`${value}`, "CTL"]}
                 />
               }
             />
@@ -223,16 +223,18 @@ export default function BlockEffectivenessChartNew({
             <XAxis type="number" domain={[0, 100]} hide />
             <YAxis type="category" hide />
             <ChartTooltip
-              content={({ active, payload }) => {
+              content={({ active, payload }: any) => {
                 if (!active || !payload || payload.length === 0) return null;
 
-                const zones = payload.filter((p) => (p.value as number) > 0);
+                const zones = payload.filter(
+                  (p: any) => (p.value as number) > 0,
+                );
                 return (
                   <div className="bg-bg-card border-2 border-teal rounded-lg shadow-lg p-2 text-xs">
                     <div className="space-y-1">
-                      {zones.map((zone) => (
+                      {zones.map((zone: any, index: number) => (
                         <div
-                          key={zone.dataKey}
+                          key={String(zone.dataKey) || `zone-${index}`}
                           className="flex items-center justify-between gap-3"
                         >
                           <div className="flex items-center gap-1.5">

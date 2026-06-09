@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: monorepoRoot,
   reactStrictMode: false, // Disable to prevent duplicate API calls in dev
 
+  transpilePackages: [
+    "@intervals/shared",
+    "@intervals/brand",
+    "@intervals/constants",
+    "@intervals/ui",
+  ],
+
   turbopack: {
     // Points to the folder containing your pnpm-workspace.yaml (two levels up)
     root: monorepoRoot,

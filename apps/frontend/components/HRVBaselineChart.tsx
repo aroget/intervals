@@ -160,7 +160,7 @@ export default function HRVBaselineChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value, name) => {
+                formatter={(value: any, name: any) => {
                   if (value == null) return ["—", name];
                   return [
                     <span key={name} className="tabular-nums">

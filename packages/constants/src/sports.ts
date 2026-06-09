@@ -40,7 +40,10 @@ export const SPORTS = {
 export function getSportIcon(sport: string): string {
   const normalized = sport.toLowerCase();
   for (const s of Object.values(SPORTS)) {
-    if (s.normalized === normalized || s.aliases.includes(normalized)) {
+    if (
+      s.normalized === normalized ||
+      (s.aliases as readonly string[]).includes(normalized)
+    ) {
       return s.icon;
     }
   }

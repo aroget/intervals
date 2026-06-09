@@ -19,7 +19,15 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@intervals/shared": ["../../packages/shared/src"],
+      "@intervals/shared/*": ["../../packages/shared/src/*"],
+      "@intervals/brand": ["../../packages/brand/src"],
+      "@intervals/brand/*": ["../../packages/brand/src/*"],
+      "@intervals/constants": ["../../packages/constants/src"],
+      "@intervals/constants/*": ["../../packages/constants/src/*"],
+      "@intervals/ui": ["../../packages/ui/src"],
+      "@intervals/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": [
