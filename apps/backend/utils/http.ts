@@ -9,7 +9,9 @@ import type { Context } from "hono";
  * Extract athleteId from route params
  */
 export function getAthleteId(c: Context): string {
-  return c.req.param("athleteId");
+  const id = c.req.param("athleteId");
+  if (!id) throw new Error("Missing athleteId parameter");
+  return id;
 }
 
 /**

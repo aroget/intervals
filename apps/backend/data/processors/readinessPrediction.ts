@@ -1,7 +1,7 @@
 /**
  * Readiness prediction - predicts tomorrow's readiness based on current training load
  */
-import type { Activity, Wellness, ComputedMetrics } from "../../types.js";
+import type { Activity, WellnessLog, ComputedMetrics } from "../../types.js";
 
 export interface ReadinessPrediction {
   tomorrowReadiness: "high" | "moderate" | "low";
@@ -16,7 +16,7 @@ export interface ReadinessPrediction {
 export function predictTomorrowReadiness(
   metrics: ComputedMetrics,
   recentActivities: Activity[],
-  recentWellness: Wellness[],
+  recentWellness: WellnessLog[],
 ): ReadinessPrediction {
   const reasoning: string[] = [];
   let score = 50; // Base score

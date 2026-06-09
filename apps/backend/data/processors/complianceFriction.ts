@@ -83,6 +83,7 @@ export function detectSportAvoidance(
   });
 
   completed.forEach((a) => {
+    if (!a.sport) return;
     const existing = sportMap.get(a.sport);
     if (existing) {
       existing.completed += 1;
@@ -102,13 +103,14 @@ export function detectSportAvoidance(
     }
   });
 
-  if (worstSport) {
+  if (worstSport !== null) {
+    const { sport, skipRate } = worstSport;
     return {
       type: "sport_avoidance",
-      severity: worstSport.skipRate >= 0.75 ? "high" : "moderate",
-      description: `Frequently skipping ${worstSport.sport} workouts (${Math.round(worstSport.skipRate * 100)}% skip rate)`,
-      actionable: `Consider why ${worstSport.sport} is challenging - injury risk, equipment access, weather, or preference? Adjust sport mix if needed.`,
-      data: { sport: worstSport.sport, skipRate: worstSport.skipRate },
+      severity: skipRate >= 0.75 ? "high" : "moderate",
+      description: `Frequently skipping ${sport} workouts (${Math.round(skipRate * 100)}% skip rate)`,
+      actionable: `Consider why ${sport} is challenging - injury risk, equipment access, weather, or preference? Adjust sport mix if needed.`,
+      data: { sport, skipRate },
     };
   }
 

@@ -2,7 +2,7 @@
  * Recovery pattern analysis - detects individual athlete recovery patterns
  * from historical wellness and activity data.
  */
-import type { Wellness, Activity } from "../../types.js";
+import type { WellnessLog, Activity } from "../../types.js";
 
 export interface RecoveryPattern {
   type: string;
@@ -15,7 +15,7 @@ export interface RecoveryPattern {
  * Analyzes HRV response to high-intensity training
  */
 export function analyzeHrvAfterKeyWorkouts(
-  wellness: Wellness[],
+  wellness: WellnessLog[],
   activities: Activity[],
 ): RecoveryPattern | null {
   // Find key sessions (high TSS or intensity)
@@ -70,7 +70,7 @@ export function analyzeHrvAfterKeyWorkouts(
  * Analyzes how many recovery days are typically needed after high load weeks
  */
 export function analyzeRecoveryDaysNeeded(
-  wellness: Wellness[],
+  wellness: WellnessLog[],
   activities: Activity[],
 ): RecoveryPattern | null {
   // Group activities by week
@@ -151,7 +151,7 @@ export function analyzeRecoveryDaysNeeded(
  * Detects back-to-back key session tolerance
  */
 export function analyzeBackToBackTolerance(
-  wellness: Wellness[],
+  wellness: WellnessLog[],
   activities: Activity[],
 ): RecoveryPattern | null {
   const keySessions = activities
@@ -207,7 +207,7 @@ export function analyzeBackToBackTolerance(
  * Main function to analyze all recovery patterns
  */
 export function analyzeAllRecoveryPatterns(
-  wellness: Wellness[],
+  wellness: WellnessLog[],
   activities: Activity[],
 ): RecoveryPattern[] {
   const patterns: RecoveryPattern[] = [];

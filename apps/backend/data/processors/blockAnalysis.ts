@@ -13,7 +13,16 @@ import {
   calculateBlockEffectiveness,
   type SessionData,
 } from "./fitnessTrajectory.js";
-import type { Activity, PrescribedWorkout } from "../../types.js";
+import type { Activity } from "../../types.js";
+
+// Database row type (snake_case from Supabase)
+interface PrescribedWorkoutRow {
+  workout_date: string;
+  sport: string | null;
+  duration_min: number | null;
+  intensity: string | null;
+  session_type: string | null;
+}
 
 export interface BlockAnalysisOptions {
   includeWorkouts?: boolean;
@@ -37,7 +46,13 @@ export interface BlockAnalysisResult {
     endDate: string;
     days: {
       date: string;
-      prescribed: PrescribedWorkout | null;
+      prescribed: {
+        workoutDate: string;
+        sport: string | null;
+        durationMin: number | null;
+        intensity: string | null;
+        sessionType: string | null;
+      } | null;
       completed: Activity[];
     }[];
   }[];
@@ -155,7 +170,7 @@ export async function getBlockAnalysis(
   );
 
   // Load workouts if needed
-  let workouts: PrescribedWorkout[] = [];
+  let workouts: PrescribedWorkoutRow[] = [];
   if (
     options.includeWorkouts ||
     options.includeCompliance ||
@@ -169,7 +184,7 @@ export async function getBlockAnalysis(
       .lte("workout_date", blockEndStr)
       .order("workout_date");
 
-    workouts = (data ?? []) as PrescribedWorkout[];
+    workouts = (data ?? []) as PrescribedWorkoutRow[];
   }
 
   // Build weeks with daily workouts
@@ -189,8 +204,16 @@ export async function getBlockAnalysis(
         dayDate.setDate(weekStart.getDate() + d);
         const dateStr = dayDate.toISOString().slice(0, 10);
 
-        const prescribed =
-          workouts.find((w) => (w as any).workout_date === dateStr) || null;
+        const workoutRow = workouts.find((w) => w.workout_date === dateStr);
+        const prescribed = workoutRow
+          ? {
+              workoutDate: workoutRow.workout_date,
+              sport: workoutRow.sport,
+              durationMin: workoutRow.duration_min,
+              intensity: workoutRow.intensity,
+              sessionType: workoutRow.session_type,
+            }
+          : null;
         const completed = blockActivities.filter(
           (a) => a.activityDate === dateStr,
         );
@@ -239,7 +262,16 @@ export async function getBlockAnalysis(
         : 0;
 
     result.compliance = {
-      weeklyReports: reports,
+      weeklyReports: reports.map((r) => ({
+        weekNum: r.weekNumber,
+        weekType: r.weekType,
+        targetTss: r.targetTss,
+        actualTss: r.actualTss,
+        tssRate: r.tssComplianceRate,
+        workoutsCompleted: r.workoutsCompleted,
+        workoutsPrescribed: r.workoutsPrescribed,
+        complianceRate: r.complianceRate,
+      })),
       overallCompliance: {
         workoutsCompleted: totalCompleted,
         workoutsPrescribed: totalPrescribed,
@@ -268,7 +300,13 @@ export async function getBlockAnalysis(
     if (options.includeFitness) {
       result.fitness = {
         baselineCtl,
-        checkpoints,
+        checkpoints: checkpoints.map((c) => ({
+          weekNum: c.weekInBlock,
+          date: c.date,
+          actualCtl: c.actualCtl,
+          expectedCtl: c.expectedCtl,
+          trend: c.trend,
+        })),
       };
     }
 
