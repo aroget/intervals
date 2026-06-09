@@ -287,7 +287,9 @@ export async function getBlockAnalysis(
       // Build session data for weighted compliance
       const sessions: SessionData[] = workouts.map((w) => {
         const sessionType =
-          (w as any).session_type || (w as any).agent_output?.sessionType || "endurance";
+          (w as any).session_type ||
+          (w as any).agent_output?.sessionType ||
+          "endurance";
         const completed = blockActivities.some(
           (a) => a.activityDate === (w as any).workout_date,
         );

@@ -4,8 +4,10 @@ import { useState } from "react";
 import { ATHLETE_ID } from "@/lib/api";
 import AnalyticsSummaryStrip from "@/components/AnalyticsSummaryStrip";
 import UnifiedBioMetricTimeline from "@/components/UnifiedBioMetricTimeline";
-import CompliancePanelA from "@/components/CompliancePanelA";
-import PhysiologyPanelB from "@/components/PhysiologyPanelB";
+import ACWRCorridorChart from "@/components/ACWRCorridorChart";
+import HRVBaselineChart from "@/components/HRVBaselineChart";
+import ReadinessPerformanceScatter from "@/components/ReadinessPerformanceScatter";
+import AerobicDecouplingChart from "@/components/AerobicDecouplingChart";
 import DailyActionFooter from "@/components/DailyActionFooter";
 import TimeframeSelectorHorizontal from "@/components/TimeframeSelectorHorizontal";
 
@@ -56,22 +58,64 @@ export default function AnalyticsPage() {
           <UnifiedBioMetricTimeline athleteId={ATHLETE_ID} days={timeframe} />
         </div>
 
-        {/* [3] SPLIT DEEP-DIVE PANELS */}
+        {/* [3] ADVANCED ANALYTICS - 2x2 GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* PANEL A: TARGET COMPLIANCE */}
-          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+          {/* ACWR Corridor */}
+          <div className="rounded-2xl bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
             <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
-              Target Compliance
+              ACWR Injury Risk Corridor
             </h2>
-            <CompliancePanelA athleteId={ATHLETE_ID} />
+            <p className="text-xs text-muted mb-4 leading-relaxed">
+              Acute-to-Chronic Workload Ratio tracks injury risk. Green zone
+              (0.8-1.3) = optimal training stimulus. Red zone (&gt;1.5) = high
+              injury risk — time to reduce volume.
+            </p>
+            <ACWRCorridorChart athleteId={ATHLETE_ID} days={timeframe} />
           </div>
 
-          {/* PANEL B: PHYSIOLOGICAL SPECTRUM RESPONSES */}
+          {/* HRV Baseline */}
           <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
             <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
-              Physiological Spectrum Responses
+              HRV Baseline vs. 7-Day Average
             </h2>
-            <PhysiologyPanelB athleteId={ATHLETE_ID} />
+            <p className="text-xs text-muted mb-4 leading-relaxed">
+              30-day baseline band (orange) shows your normal HRV range. When
+              the 7-day average (teal line) drops below the lower bound, it
+              signals a deep recovery deficit.
+            </p>
+            <HRVBaselineChart
+              athleteId={ATHLETE_ID}
+              days={Math.min(timeframe, 60)}
+            />
+          </div>
+
+          {/* Readiness vs Performance Scatter */}
+          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
+              Readiness vs. Performance Analysis
+            </h2>
+            <p className="text-xs text-muted mb-4 leading-relaxed">
+              Each workout plotted by morning readiness (X-axis) and performance
+              metric (Y-axis). Clusters reveal your "sweet spots" where you
+              perform best at certain readiness levels.
+            </p>
+            <ReadinessPerformanceScatter
+              athleteId={ATHLETE_ID}
+              days={timeframe}
+            />
+          </div>
+
+          {/* Aerobic Decoupling Trend */}
+          <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+            <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-4">
+              Aerobic Decoupling Trend
+            </h2>
+            <p className="text-xs text-muted mb-4 leading-relaxed">
+              Weekly average of Pw:Hr / Pa:Hr drift in endurance sessions. Below
+              5% = efficient aerobic engine. Above 5% = prioritize low-intensity
+              volume over high-intensity work.
+            </p>
+            <AerobicDecouplingChart athleteId={ATHLETE_ID} days={timeframe} />
           </div>
         </div>
       </div>

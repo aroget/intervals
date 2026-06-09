@@ -23,7 +23,7 @@ export function Spinner({ size = "md", className = "" }: SpinnerProps) {
       role="status"
       aria-label="Loading"
     >
-      <span className="sr-only">Loading...</span>
+      <span className="sr-only"></span>
     </div>
   );
 }
@@ -38,10 +38,7 @@ export interface LoadingStateProps {
   className?: string;
 }
 
-export function LoadingState({
-  message = "Loading...",
-  className = "",
-}: LoadingStateProps) {
+export function LoadingState({ message, className = "" }: LoadingStateProps) {
   return (
     <div
       className={`flex flex-col items-center justify-center gap-4 p-8 ${className}`}

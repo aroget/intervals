@@ -139,15 +139,16 @@ Week 1 = base, Week 2 = build, Week 3 = peak, Week 4 = recovery. Logic is in `ap
 
 ```typescript
 const result = await getBlockAnalysis(athleteId, refDate, {
-  includeWorkouts: true,     // Week-by-week structure with daily workouts
-  includeCompliance: true,   // Compliance reports
-  includeFitness: true,      // CTL checkpoints
+  includeWorkouts: true, // Week-by-week structure with daily workouts
+  includeCompliance: true, // Compliance reports
+  includeFitness: true, // CTL checkpoints
   includeEffectiveness: true, // Block score + component metrics
-  includeZones: true,        // Intensity zone distribution
+  includeZones: true, // Intensity zone distribution
 });
 ```
 
 **Benefits**:
+
 - Block boundaries calculated once
 - Activities loaded once, reused across calculations
 - Eliminates 600+ lines of duplication
@@ -156,6 +157,7 @@ const result = await getBlockAnalysis(athleteId, refDate, {
 ### Thin Route Pattern
 
 Routes should be simple orchestrators that:
+
 1. Extract parameters from request
 2. Call composite processor or existing processor
 3. Transform result for API contract
@@ -167,11 +169,11 @@ Routes should be simple orchestrators that:
 // ❌ BAD: 80 lines of logic in route
 analysis.get("/:athleteId/compliance", async (c) => {
   const athleteId = c.req.param("athleteId");
-  
-  // Get profile, calculate block boundaries, load workouts, 
+
+  // Get profile, calculate block boundaries, load workouts,
   // load activities, run calculations, aggregate results...
   // (80 lines of duplicated logic)
-  
+
   return c.json(results);
 });
 
@@ -179,11 +181,11 @@ analysis.get("/:athleteId/compliance", async (c) => {
 analysis.get("/:athleteId/compliance", async (c) => {
   const athleteId = c.req.param("athleteId");
   const refDate = c.req.query("date") ?? getTodayDate();
-  
+
   const result = await getBlockAnalysis(athleteId, refDate, {
     includeCompliance: true,
   });
-  
+
   return c.json({
     blockStartDate: result.blockStartDate,
     weeklyReports: result.compliance?.weeklyReports ?? [],
@@ -202,7 +204,7 @@ GET /analysis/:athleteId/block?include=workouts,compliance,fitness
 
 // ❌ BAD: Multiple endpoints doing similar things
 GET /analysis/:athleteId/block-overview
-GET /analysis/:athleteId/compliance  
+GET /analysis/:athleteId/compliance
 GET /analysis/:athleteId/fitness-trajectory
 ```
 
@@ -212,12 +214,14 @@ GET /analysis/:athleteId/fitness-trajectory
 analysis.get("/:athleteId/block", async (c) => {
   const athleteId = c.req.param("athleteId");
   const include = c.req.query("include")?.split(",") ?? [];
-  
-  return c.json(await getBlockAnalysis(athleteId, getTodayDate(), {
-    includeWorkouts: include.includes("workouts"),
-    includeCompliance: include.includes("compliance"),
-    includeFitness: include.includes("fitness"),
-  }));
+
+  return c.json(
+    await getBlockAnalysis(athleteId, getTodayDate(), {
+      includeWorkouts: include.includes("workouts"),
+      includeCompliance: include.includes("compliance"),
+      includeFitness: include.includes("fitness"),
+    }),
+  );
 });
 ```
 

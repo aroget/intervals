@@ -26,6 +26,10 @@ import {
   getTrainingStressBalance,
   getTrainingLoadHistory,
   getBlockEffectivenessHistory,
+  getACWRChart,
+  getHRVBaselineChart,
+  getReadinessPerformanceChart,
+  getDecouplingTrendChart,
 } from "../../data/processors/chartData.js";
 
 const analysis = new Hono();
@@ -188,13 +192,13 @@ analysis.post("/:athleteId/generate-week", async (c) => {
 
 /**
  * GET /analysis/:athleteId/block — flexible block endpoint with query params
- * 
+ *
  * Query params:
  * - date: reference date (default: today)
  * - include: comma-separated list of sections
  *   Options: workouts, compliance, fitness, effectiveness, zones
  *   Example: ?include=workouts,compliance
- * 
+ *
  * Replaces: /block-overview, /compliance, /fitness-trajectory
  */
 analysis.get("/:athleteId/block", async (c) => {
@@ -681,6 +685,46 @@ analysis.get("/:athleteId/sport-progress", async (c) => {
   }
 
   return c.json({ sportProgress, cached: false });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW ANALYTICS CHARTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /analysis/:athleteId/acwr-chart — ACWR injury risk corridor */
+analysis.get("/:athleteId/acwr-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "90", 10);
+
+  const data = await getACWRChart(athleteId, days);
+  return c.json({ data });
+});
+
+/** GET /analysis/:athleteId/hrv-baseline-chart — HRV baseline + 7-day avg */
+analysis.get("/:athleteId/hrv-baseline-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "60", 10);
+
+  const data = await getHRVBaselineChart(athleteId, days);
+  return c.json({ data });
+});
+
+/** GET /analysis/:athleteId/readiness-performance-chart — Readiness vs Performance scatter */
+analysis.get("/:athleteId/readiness-performance-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "90", 10);
+
+  const data = await getReadinessPerformanceChart(athleteId, days);
+  return c.json({ data });
+});
+
+/** GET /analysis/:athleteId/decoupling-trend-chart — Aerobic decoupling trends */
+analysis.get("/:athleteId/decoupling-trend-chart", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = parseInt(c.req.query("days") ?? "90", 10);
+
+  const result = await getDecouplingTrendChart(athleteId, days);
+  return c.json(result);
 });
 
 export default analysis;

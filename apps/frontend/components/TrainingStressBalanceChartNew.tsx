@@ -83,7 +83,10 @@ export default function TrainingStressBalanceChartNew({
   const latestPoint = allData[allData.length - 1];
   const currentCtl = latestPoint?.ctl ?? 0;
   const currentAtl = latestPoint?.atl ?? 0;
-  const currentTsb = latestPoint?.tsb ?? latestPoint?.ctl && latestPoint?.atl ? latestPoint.ctl - latestPoint.atl : 0;
+  const currentTsb =
+    (latestPoint?.tsb ?? (latestPoint?.ctl && latestPoint?.atl))
+      ? latestPoint.ctl - latestPoint.atl
+      : 0;
   const currentDate = latestPoint?.date
     ? new Date(latestPoint.date + "T00:00:00").toLocaleDateString("en-US", {
         month: "short",

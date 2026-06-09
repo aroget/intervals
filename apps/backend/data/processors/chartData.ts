@@ -4,7 +4,14 @@
  */
 
 import { db } from "../../db/client.js";
-import { loadActivities } from "../../db/loaders.js";
+import { loadActivities, loadWellness } from "../../db/loaders.js";
+import { calculateACWRTimeSeries } from "./acwrAnalysis.js";
+import { calculateHRVBaseline } from "./hrvBaseline.js";
+import { analyzeReadinessPerformance } from "./readinessPerformance.js";
+import {
+  extractDecouplingData,
+  calculateWeeklyDecoupling,
+} from "./decouplingTrend.js";
 
 /**
  * Get recovery + readiness chart data (daily readiness scores + TSS).
@@ -230,7 +237,11 @@ export async function getBlockEffectivenessHistory(
 
   const blocks = [];
 
-  for (let i = Math.max(0, currentBlockNumber - numBlocks + 1); i <= currentBlockNumber; i++) {
+  for (
+    let i = Math.max(0, currentBlockNumber - numBlocks + 1);
+    i <= currentBlockNumber;
+    i++
+  ) {
     const blockStart = new Date(cycleStart);
     blockStart.setDate(cycleStart.getDate() + i * 28);
     const blockEnd = new Date(blockStart);
@@ -263,4 +274,72 @@ export async function getBlockEffectivenessHistory(
   }
 
   return blocks;
+}
+
+/**
+ * Get ACWR (Acute-to-Chronic Workload Ratio) time series.
+ */
+export async function getACWRChart(
+  athleteId: string,
+  days: number = 90,
+): Promise<ReturnType<typeof calculateACWRTimeSeries>> {
+  const activities = await loadActivities(athleteId, days);
+  return calculateACWRTimeSeries(activities);
+}
+
+/**
+ * Get HRV baseline chart (30-day baseline band + 7-day rolling average).
+ */
+export async function getHRVBaselineChart(
+  athleteId: string,
+  days: number = 60,
+): Promise<ReturnType<typeof calculateHRVBaseline>> {
+  const wellness = await loadWellness(athleteId, days);
+  return calculateHRVBaseline(wellness);
+}
+
+/**
+ * Get readiness vs performance scatter data.
+ */
+export async function getReadinessPerformanceChart(
+  athleteId: string,
+  days: number = 90,
+): Promise<ReturnType<typeof analyzeReadinessPerformance>> {
+  const activities = await loadActivities(athleteId, days);
+
+  // Get readiness scores
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const { data: analyses } = await db
+    .from("daily_analyses")
+    .select("analysis_date, readiness_score")
+    .eq("athlete_id", athleteId)
+    .gte("analysis_date", sinceStr)
+    .order("analysis_date", { ascending: true });
+
+  const readinessMap = new Map<string, number>();
+  (analyses ?? []).forEach((a: any) => {
+    readinessMap.set(a.analysis_date, a.readiness_score);
+  });
+
+  return analyzeReadinessPerformance(activities, readinessMap);
+}
+
+/**
+ * Get aerobic decoupling trend data (daily + weekly averages).
+ */
+export async function getDecouplingTrendChart(
+  athleteId: string,
+  days: number = 90,
+): Promise<{
+  daily: ReturnType<typeof extractDecouplingData>;
+  weekly: ReturnType<typeof calculateWeeklyDecoupling>;
+}> {
+  const activities = await loadActivities(athleteId, days);
+  const daily = extractDecouplingData(activities);
+  const weekly = calculateWeeklyDecoupling(daily);
+
+  return { daily, weekly };
 }
