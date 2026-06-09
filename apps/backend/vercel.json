@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "rewrites": [
     {
       "source": "/(.*)",
