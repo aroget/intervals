@@ -416,14 +416,16 @@ export async function runDailyAnalysis(
   console.log("[daily] Complete");
 }
 
-// Allow direct execution: pnpm analyze [--force]
-const force = process.argv.includes("--force");
-runDailyAnalysis(undefined, undefined, undefined, undefined, force).catch(
-  (err) => {
-    console.error(err);
-    process.exit(1);
-  },
-);
+// Only run if this file is executed directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const force = process.argv.includes("--force");
+  runDailyAnalysis(undefined, undefined, undefined, undefined, force).catch(
+    (err) => {
+      console.error(err);
+      process.exit(1);
+    },
+  );
+}
 
 /**
  * Regenerates the prescribed workouts for the next `days` days starting from

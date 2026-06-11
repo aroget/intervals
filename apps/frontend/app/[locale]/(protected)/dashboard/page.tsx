@@ -590,7 +590,8 @@ export default function DashboardPage() {
         .then(() => mutateToday())
         .finally(() => setAnalyzingToday(false));
     }
-  }, [data, isLoading, analyzingToday, mutateToday]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, isLoading, analyzingToday]);
 
   const closeModal = useCallback(() => setSelectedActivity(null), []);
 

@@ -61,6 +61,14 @@ export async function syncActivities(daysBack = 1): Promise<void> {
 }
 
 export async function runSync(): Promise<void> {
+  // Check for --full flag in command line args
+  const isFullSync = process.argv.includes("--full");
+  const daysBack = isFullSync ? 90 : 1;
+  
+  if (isFullSync) {
+    console.log("[sync] 🔄 FULL SYNC MODE: syncing last 90 days");
+  }
+
   // Verify a complete athlete profile exists before syncing.
   const { data: profile, error: profileError } = await db
     .from("athlete_profiles")
@@ -76,11 +84,10 @@ export async function runSync(): Promise<void> {
   }
 
   await Promise.all([
-    syncWellness(),
-    syncActivities(),
+    syncWellness(isFullSync ? 90 : 60),
+    syncActivities(daysBack),
     syncAthleteThresholds(),
   ]);
-  await markCompletedWorkouts(); // Mark prescribed workouts as completed based on synced activities
   console.log("[sync] complete");
 }
 
@@ -114,57 +121,10 @@ async function syncAthleteThresholds(): Promise<void> {
   }
 }
 
-/**
- * Mark prescribed workouts as completed if an activity exists for that date.
- * Runs after syncActivities() to reconcile completed sessions with the plan.
- */
-async function markCompletedWorkouts(): Promise<void> {
-  try {
-    // Get all activity dates for this athlete (last 60 days to cover sync window)
-    const since = toIso(60);
-    const { data: activities } = await db
-      .from("activities")
-      .select("activity_date, sport")
-      .eq("athlete_id", ATHLETE_ID)
-      .gte("activity_date", since);
-
-    if (!activities || activities.length === 0) return;
-
-    // Build a set of dates (and optionally date+sport pairs) that have activities
-    const activityDates = new Set(
-      activities.map((a: any) => a.activity_date as string),
-    );
-
-    // Mark any prescribed workouts for these dates as completed
-    const { data: prescribedWorkouts } = await db
-      .from("prescribed_workouts")
-      .select("id, workout_date, completed")
-      .eq("athlete_id", ATHLETE_ID)
-      .gte("workout_date", since)
-      .eq("completed", false); // Only update incomplete workouts
-
-    if (!prescribedWorkouts || prescribedWorkouts.length === 0) return;
-
-    const toComplete = prescribedWorkouts.filter((w: any) =>
-      activityDates.has(w.workout_date as string),
-    );
-
-    if (toComplete.length > 0) {
-      const ids = toComplete.map((w: any) => w.id);
-      await db
-        .from("prescribed_workouts")
-        .update({ completed: true })
-        .in("id", ids);
-      console.log(`[sync] marked ${toComplete.length} workouts as completed`);
-    }
-  } catch (err) {
-    // Non-fatal: log but don't crash sync
-    console.warn("[sync] markCompletedWorkouts failed:", err);
-  }
+// Only run if this file is executed directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runSync().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }
-
-// Allow direct execution: pnpm sync
-runSync().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

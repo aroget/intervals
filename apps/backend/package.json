@@ -5,9 +5,11 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "predev": "cd ../.. && pnpm --filter @intervals/shared build && pnpm --filter @intervals/brand build && pnpm --filter @intervals/constants build",
     "dev": "tsx watch index.ts",
     "morningsync": "pnpm sync && pnpm analyze",
     "sync": "tsx data/sync/pipeline.ts",
+    "sync:full": "tsx data/sync/pipeline.ts --full",
     "analyze": "tsx agents/daily.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
