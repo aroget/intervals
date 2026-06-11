@@ -15,6 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: "pnpm" }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @intervals/shared --filter @intervals/brand --filter @intervals/constants build
       - run: pnpm analyze
         working-directory: apps/backend
         env:
