@@ -7,6 +7,7 @@ import { db } from "../db/client.js";
 import { loadProfile, loadWellness, loadActivities } from "../db/loaders.js";
 import { buildComputedMetrics } from "../data/processors/readiness.js";
 import { buildComplianceReport } from "../data/processors/workoutCompliance.js";
+import { fromActivityRow } from "../data/intervals/mapper.js";
 import {
   analyzeFitnessTrajectory,
   calculateBlockEffectiveness,
@@ -288,7 +289,7 @@ export async function runDailyAnalysis(
   // ── Yesterday's compliance ─────────────────────────────────────────────────
   // (yesterdayStr already computed above for recovery context)
 
-  const [{ data: yesterdayPrescription }, yesterdayActivity] =
+  const [{ data: yesterdayPrescription }, yesterdayActivityRaw] =
     await Promise.all([
       db
         .from("prescribed_workouts")
@@ -299,9 +300,7 @@ export async function runDailyAnalysis(
       (async () => {
         const { data } = await db
           .from("activities")
-          .select(
-            "activity_date,sport,duration_secs,tss,intensity_factor,avg_hr,rpe,athlete_comments",
-          )
+          .select("*")
           .eq("athlete_id", athleteId)
           .eq("activity_date", yesterdayStr)
           .order("created_at", { ascending: false })
@@ -310,6 +309,11 @@ export async function runDailyAnalysis(
         return data ?? null;
       })(),
     ]);
+
+  // Transform activity using mapper
+  const yesterdayActivity = yesterdayActivityRaw
+    ? fromActivityRow(yesterdayActivityRaw)
+    : null;
 
   let compliance: ComplianceReport | null = null;
   if (yesterdayPrescription) {
@@ -324,12 +328,12 @@ export async function runDailyAnalysis(
         ? {
             date: yesterdayStr,
             sport: yesterdayActivity.sport,
-            durationSecs: yesterdayActivity.duration_secs,
+            durationSecs: yesterdayActivity.durationSecs,
             tss: yesterdayActivity.tss,
-            intensityFactor: yesterdayActivity.intensity_factor,
-            avgHr: yesterdayActivity.avg_hr,
+            intensityFactor: yesterdayActivity.intensityFactor,
+            avgHr: yesterdayActivity.avgHr,
             rpe: yesterdayActivity.rpe ?? null,
-            athleteComments: yesterdayActivity.athlete_comments ?? null,
+            athleteComments: yesterdayActivity.athleteComments ?? null,
           }
         : null,
     );

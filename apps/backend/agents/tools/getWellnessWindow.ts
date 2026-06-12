@@ -1,6 +1,7 @@
 import { db } from "../../db/client.js";
 import type { AgentTool } from "../llm/types.js";
 import type { WellnessLog } from "../../types.js";
+import { fromWellnessRow } from "../../data/intervals/mapper.js";
 
 export const getWellnessWindow: AgentTool<
   { days: number; athleteId: string },
@@ -31,6 +32,6 @@ export const getWellnessWindow: AgentTool<
       .order("log_date", { ascending: true });
 
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as WellnessLog[];
+    return (data ?? []).map((r: any) => fromWellnessRow(r));
   },
 };

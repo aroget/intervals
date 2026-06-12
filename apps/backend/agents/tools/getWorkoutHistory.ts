@@ -1,6 +1,7 @@
 import { db } from "../../db/client.js";
 import type { AgentTool } from "../llm/types.js";
 import type { Activity } from "../../types.js";
+import { fromActivityRow } from "../../data/intervals/mapper.js";
 
 export const getWorkoutHistory: AgentTool<
   { athleteId: string; days?: number; sport?: string },
@@ -39,6 +40,6 @@ export const getWorkoutHistory: AgentTool<
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as Activity[];
+    return (data ?? []).map((r: any) => fromActivityRow(r));
   },
 };

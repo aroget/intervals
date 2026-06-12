@@ -1,4 +1,4 @@
-import { db } from "../../db/client.js";
+import { loadProfile } from "../../db/loaders.js";
 import type { AgentTool } from "../llm/types.js";
 import type { AthleteProfile } from "../../types.js";
 
@@ -17,13 +17,10 @@ export const getAthleteProfile: AgentTool<
     required: ["athleteId"],
   },
   async execute({ athleteId }) {
-    const { data, error } = await db
-      .from("athlete_profiles")
-      .select("*")
-      .eq("athlete_id", athleteId)
-      .single();
-
-    if (error) return null;
-    return data as unknown as AthleteProfile;
+    try {
+      return await loadProfile(athleteId);
+    } catch (error) {
+      return null;
+    }
   },
 };
