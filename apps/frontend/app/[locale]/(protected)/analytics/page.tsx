@@ -8,6 +8,7 @@ import ACWRCorridorChart from "@/components/ACWRCorridorChart";
 import HRVBaselineChart from "@/components/HRVBaselineChart";
 import ReadinessPerformanceScatter from "@/components/ReadinessPerformanceScatter";
 import AerobicDecouplingChart from "@/components/AerobicDecouplingChart";
+import BlockEffectivenessTrend from "@/components/BlockEffectivenessTrend";
 import DailyActionFooter from "@/components/DailyActionFooter";
 import TimeframeSelectorHorizontal from "@/components/TimeframeSelectorHorizontal";
 
@@ -44,6 +45,11 @@ export default function AnalyticsPage() {
 
         {/* [1.5] DAILY ACTION FOOTER - Today's Workout */}
         <DailyActionFooter athleteId={ATHLETE_ID} />
+
+        {/* [1.6] BLOCK EFFECTIVENESS TREND - Current Training Block */}
+        <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+          <BlockEffectivenessTrend athleteId={ATHLETE_ID} />
+        </div>
 
         {/* [2] UNIFIED BIO-METRIC TIMELINE */}
         <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">

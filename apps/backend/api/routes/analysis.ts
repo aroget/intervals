@@ -321,7 +321,7 @@ analysis.get("/:athleteId/block-history", async (c) => {
   return c.json({ blocks });
 });
 
-/** GET /analysis/:athleteId/block-effectiveness-chart — current block metrics */
+/** GET /analysis/:athleteId/block-effectiveness-chart — current block daily trend */
 analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
   const athleteId = c.req.param("athleteId");
   const refDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
@@ -333,23 +333,72 @@ analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
     includeCompliance: true,
   });
 
+  // Fetch daily effectiveness scores for the block
+  const { data: dailyScores } = await db
+    .from("daily_analyses")
+    .select("analysis_date, block_effectiveness")
+    .eq("athlete_id", athleteId)
+    .gte("analysis_date", result.blockStartDate)
+    .lte("analysis_date", result.blockEndDate)
+    .order("analysis_date", { ascending: true });
+
+  // Calculate expected ranges for each day (1-28)
+  // Progressive growth: Week 1 starts low, Week 3 peaks, Week 4 stabilizes
+  const calculateExpectedRange = (
+    dayNum: number,
+  ): { min: number; max: number } => {
+    if (dayNum <= 7) {
+      // Week 1: Building baseline
+      return { min: 25 + dayNum * 2, max: 45 + dayNum * 2 };
+    } else if (dayNum <= 14) {
+      // Week 2: Ramping up
+      return { min: 35 + (dayNum - 7) * 2, max: 55 + (dayNum - 7) * 2 };
+    } else if (dayNum <= 21) {
+      // Week 3: Peak effectiveness
+      return { min: 45 + (dayNum - 14) * 2, max: 70 + (dayNum - 14) * 1.5 };
+    } else {
+      // Week 4: Recovery maintains but doesn't push higher
+      return { min: 55, max: 75 };
+    }
+  };
+
+  // Build daily data points for all 28 days
+  const dailyData = [];
+  const blockStart = new Date(result.blockStartDate);
+
+  for (let i = 0; i < 28; i++) {
+    const currentDate = new Date(blockStart);
+    currentDate.setDate(blockStart.getDate() + i);
+    const dateStr = currentDate.toISOString().slice(0, 10);
+    const dayNum = i + 1;
+    const expectedRange = calculateExpectedRange(dayNum);
+
+    // Find actual score for this date
+    const dailyScore = dailyScores?.find((d) => d.analysis_date === dateStr);
+
+    dailyData.push({
+      day: dayNum,
+      date: dateStr,
+      actualScore: dailyScore?.block_effectiveness ?? null,
+      expectedMin: expectedRange.min,
+      expectedMax: expectedRange.max,
+    });
+  }
+
+  // Find the most recent actual score from daily data
+  const mostRecentScore =
+    dailyData
+      .slice()
+      .reverse()
+      .find((d) => d.actualScore !== null)?.actualScore ?? null;
+
   return c.json({
     blockStart: result.blockStartDate,
     blockEnd: result.blockEndDate,
-    baselineCtl: result.fitness?.baselineCtl ?? 0,
-    currentCtl:
-      result.fitness?.checkpoints[result.fitness.checkpoints.length - 1]
-        ?.actualCtl ?? 0,
-    ctlGain:
-      (result.fitness?.checkpoints[result.fitness.checkpoints.length - 1]
-        ?.actualCtl ?? 0) - (result.fitness?.baselineCtl ?? 0),
-    zonePercentages: result.zones ?? {},
-    complianceRate: result.compliance?.overallCompliance.complianceRate ?? 100,
-    effectivenessScore: result.effectiveness?.score ?? 0,
-    progressiveOverloadScore:
-      result.effectiveness?.components.progressiveOverload ?? 0,
-    consistencyScore: result.effectiveness?.components.consistency ?? 0,
-    monotonyScore: result.effectiveness?.components.monotony ?? 0,
+    currentWeek: result.currentWeek,
+    weekType: result.weekType,
+    currentScore: mostRecentScore,
+    dailyData,
   });
 });
 
