@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS daily_analyses (
   analysis_date   DATE NOT NULL,
   readiness_score NUMERIC NOT NULL,      -- computed 0–100 (deterministic)
   hrv_trend       TEXT,                  -- rising | stable | declining
-  block_effectiveness NUMERIC,           -- 0–100 score for current 4-week block
+  training_quality JSONB,                -- TrainingQualityResult: score + 4 components
   agent_output    JSONB NOT NULL,        -- full Recovery Agent structured output
   model_used      TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -119,7 +119,9 @@ CREATE TABLE IF NOT EXISTS daily_analyses (
 );
 
 -- Migration (run if table already exists):
--- ALTER TABLE daily_analyses ADD COLUMN IF NOT EXISTS block_effectiveness NUMERIC;
+-- ALTER TABLE daily_analyses ADD COLUMN IF NOT EXISTS training_quality JSONB;
+-- ALTER TABLE daily_analyses DROP COLUMN IF EXISTS block_effectiveness;
+-- ALTER TABLE daily_analyses DROP COLUMN IF EXISTS block_effectiveness_detail;
 
 -- ────────────────────────────────────────────────────────────────
 -- Prescribed workouts (Coach Agent output)

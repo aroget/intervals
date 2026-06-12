@@ -8,11 +8,7 @@ import { db } from "../../db/client.js";
 import { loadActivities } from "../../db/loaders.js";
 import { getCyclePosition } from "./cycleTracker.js";
 import { calculateBlockCompliance } from "./weeklyCompliance.js";
-import {
-  analyzeFitnessTrajectory,
-  calculateBlockEffectiveness,
-  type SessionData,
-} from "./fitnessTrajectory.js";
+import { analyzeFitnessTrajectory } from "./fitnessTrajectory.js";
 import type { Activity } from "../../types.js";
 
 // Database row type (snake_case from Supabase)
@@ -28,7 +24,6 @@ export interface BlockAnalysisOptions {
   includeWorkouts?: boolean;
   includeCompliance?: boolean;
   includeFitness?: boolean;
-  includeEffectiveness?: boolean;
   includeZones?: boolean;
 }
 
@@ -85,16 +80,6 @@ export interface BlockAnalysisResult {
       expectedCtl: number;
       trend: string;
     }>;
-  };
-
-  effectiveness?: {
-    score: number;
-    components: {
-      progressiveOverload: number;
-      consistency: number;
-      monotony: number;
-      compliance: number;
-    };
   };
 
   zones?: {
@@ -171,11 +156,7 @@ export async function getBlockAnalysis(
 
   // Load workouts if needed
   let workouts: PrescribedWorkoutRow[] = [];
-  if (
-    options.includeWorkouts ||
-    options.includeCompliance ||
-    options.includeEffectiveness
-  ) {
+  if (options.includeWorkouts || options.includeCompliance) {
     const { data } = await db
       .from("prescribed_workouts")
       .select("*")
@@ -282,7 +263,7 @@ export async function getBlockAnalysis(
   }
 
   // Analyze fitness trajectory
-  if (options.includeFitness || options.includeEffectiveness) {
+  if (options.includeFitness) {
     const baselineCtl = (() => {
       const priorActivities = activities.filter(
         (a) => a.activityDate < blockStartStr,
@@ -307,112 +288,6 @@ export async function getBlockAnalysis(
           expectedCtl: c.expectedCtl,
           trend: c.trend,
         })),
-      };
-    }
-
-    // Calculate effectiveness
-    if (options.includeEffectiveness) {
-      const blockEndCtl =
-        checkpoints[checkpoints.length - 1]?.actualCtl ?? baselineCtl;
-
-      const overtrainingDays = checkpoints.filter(
-        (c) => c.trend === "stalled",
-      ).length;
-
-      const complianceRate =
-        result.compliance?.overallCompliance.complianceRate ?? 100;
-
-      // Build session data for weighted compliance
-      const sessions: SessionData[] = workouts.map((w) => {
-        const sessionType =
-          (w as any).session_type ||
-          (w as any).agent_output?.sessionType ||
-          "endurance";
-        const completed = blockActivities.some(
-          (a) => a.activityDate === (w as any).workout_date,
-        );
-        return {
-          sessionType,
-          completed,
-          hadDeviationFlag: (w as any).had_deviation_flag ?? false,
-          deviationSeverity: (w as any).deviation_severity ?? undefined,
-        };
-      });
-
-      const effectivenessScore = calculateBlockEffectiveness(
-        baselineCtl,
-        blockEndCtl,
-        complianceRate,
-        overtrainingDays,
-        sessions,
-      );
-
-      // Calculate component scores
-      const daysWithTraining = new Set(
-        blockActivities.map((a) => a.activityDate),
-      ).size;
-      const consistencyScore = Math.min(100, (daysWithTraining / 20) * 100);
-
-      const weeklyTss = [0, 0, 0, 0];
-      for (let week = 0; week < 4; week++) {
-        const weekStart = new Date(currentBlockStart);
-        weekStart.setDate(currentBlockStart.getDate() + week * 7);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-
-        const weekActivities = blockActivities.filter(
-          (a) =>
-            a.activityDate >= weekStart.toISOString().slice(0, 10) &&
-            a.activityDate <= weekEnd.toISOString().slice(0, 10),
-        );
-
-        weeklyTss[week] = weekActivities.reduce(
-          (sum, a) => sum + (a.tss ?? 0),
-          0,
-        );
-      }
-
-      const isProgressive =
-        weeklyTss[1] >= weeklyTss[0] * 0.95 &&
-        weeklyTss[2] >= weeklyTss[1] * 0.95;
-      const progressiveOverloadScore = isProgressive ? 100 : 50;
-
-      // Monotony calculation
-      const dailyTssMap = new Map<string, number>();
-      for (
-        let d = new Date(currentBlockStart);
-        d <= blockEndDate;
-        d.setDate(d.getDate() + 1)
-      ) {
-        const dateStr = d.toISOString().slice(0, 10);
-        const dayActivities = blockActivities.filter(
-          (a) => a.activityDate === dateStr,
-        );
-        const dayTss = dayActivities.reduce((sum, a) => sum + (a.tss ?? 0), 0);
-        dailyTssMap.set(dateStr, dayTss);
-      }
-
-      const dailyTssValues = Array.from(dailyTssMap.values());
-      const avgDailyTss =
-        dailyTssValues.reduce((a, b) => a + b, 0) / dailyTssValues.length;
-
-      const variance =
-        dailyTssValues.reduce((sum, tss) => {
-          return sum + Math.pow(tss - avgDailyTss, 2);
-        }, 0) / dailyTssValues.length;
-
-      const stdDev = Math.sqrt(variance);
-      const monotony = avgDailyTss > 0 ? avgDailyTss / (stdDev + 1) : 0;
-      const monotonyScore = monotony < 2 ? 100 : monotony < 3 ? 70 : 40;
-
-      result.effectiveness = {
-        score: effectivenessScore,
-        components: {
-          progressiveOverload: progressiveOverloadScore,
-          consistency: consistencyScore,
-          monotony: monotonyScore,
-          compliance: complianceRate,
-        },
       };
     }
   }

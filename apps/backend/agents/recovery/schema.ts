@@ -23,12 +23,6 @@ export const RecoveryOutputSchema = z.object({
   recommendation: z
     .string()
     .describe("One-sentence action recommendation for the coach agent"),
-  blockScoreExplanation: z
-    .string()
-    .optional()
-    .describe(
-      "1-2 sentences explaining the current block effectiveness score (only if blockEffectiveness metric is available). Be specific about patterns like compliance rate, missed workouts, or fitness trajectory.",
-    ),
   confidence: z
     .number()
     .min(0)

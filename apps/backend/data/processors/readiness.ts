@@ -114,6 +114,6 @@ export function buildComputedMetrics(params: {
     cycleWeekNumber: cycle.weekNumber,
     cycleWeekType: cycle.weekType,
     todayMaxHours,
-    blockEffectiveness: null, // Calculated separately in daily.ts
+    trainingQuality: null, // Calculated separately in daily.ts
   };
 }

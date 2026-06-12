@@ -28,6 +28,9 @@ export async function loadProfile(athleteId: string): Promise<AthleteProfile> {
     ftp: data.ftp ?? null,
     runningThresholdPace: data.running_threshold_pace ?? null,
     lthr: data.lthr ?? null,
+    maxHrCycling: data.max_hr_cycling ?? null,
+    maxHrRunning: data.max_hr_running ?? null,
+    weightKg: data.weight_kg ?? null,
   };
 }
 

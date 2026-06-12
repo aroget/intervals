@@ -24,6 +24,7 @@ export function toActivityRow(a: IntervalsActivity, athleteId: string) {
     avg_hr: a.average_heartrate,
     max_hr: a.max_heartrate,
     avg_power: a.icu_average_watts ?? a.average_watts,
+    normalized_power: a.normalized_power,
     gap: a.gap,
     decoupling: a.decoupling,
     elevation_m: a.total_elevation_gain,

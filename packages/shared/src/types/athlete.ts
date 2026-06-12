@@ -13,4 +13,7 @@ export interface AthleteProfile {
   ftp: number | null; // Cycling FTP in watts
   runningThresholdPace: number | null; // Running threshold pace in seconds per km
   lthr: number | null; // Lactate Threshold Heart Rate in bpm
+  maxHrCycling: number | null; // Max HR for cycling (bpm)
+  maxHrRunning: number | null; // Max HR for running (bpm)
+  weightKg: number | null; // Athlete body weight in kg
 }

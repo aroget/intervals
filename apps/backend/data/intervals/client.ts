@@ -198,21 +198,40 @@ export async function fetchAthlete(): Promise<Record<string, unknown>> {
   return request<Record<string, unknown>>(`/athlete/${athleteId}`);
 }
 
-/** Extract FTP and running threshold pace from an Intervals.icu athlete record */
+/** Extract training thresholds and physical stats from an Intervals.icu athlete record */
 export function extractThresholds(athlete: Record<string, any>): {
   ftp: number | null;
   runningThresholdPace: string | null;
+  lthr: number | null;
+  maxHrCycling: number | null;
+  maxHrRunning: number | null;
+  weightKg: number | null;
 } {
-  const cycling = athlete.sportSettings.find(({ types }: { types: string[] }) =>
-    types.includes("Ride"),
+  const cycling = athlete.sportSettings?.find(
+    ({ types }: { types: string[] }) => types.includes("Ride"),
   );
-  const running = athlete.sportSettings.find(({ types }: { types: string[] }) =>
-    types.includes("Run"),
+  const running = athlete.sportSettings?.find(
+    ({ types }: { types: string[] }) => types.includes("Run"),
   );
 
   const ftp = cycling?.ftp ?? null;
   const runningThresholdPace = running?.threshold_pace
     ? convertIntervalsPaceToMinKm(running?.threshold_pace)
     : null;
-  return { ftp, runningThresholdPace };
+
+  // LTHR: prefer cycling value, fall back to running (same physiological threshold)
+  const lthr = cycling?.lthr ?? running?.lthr ?? null;
+  const maxHrCycling = cycling?.max_hr ?? null;
+  const maxHrRunning = running?.max_hr ?? null;
+  // weight in kg from athlete root (Intervals.icu stores in kg)
+  const weightKg = typeof athlete.weight === "number" ? athlete.weight : null;
+
+  return {
+    ftp,
+    runningThresholdPace,
+    lthr,
+    maxHrCycling,
+    maxHrRunning,
+    weightKg,
+  };
 }

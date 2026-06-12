@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { WorkoutChart, WorkoutBadge } from "@/components/WorkoutChart";
+import TrainingQualityCard from "@/components/TrainingQualityCard";
 import { API_URL, ATHLETE_ID, fetcher } from "@/lib/api";
 import { formatDuration, formatDistance, formatKcal } from "@/lib/formatters";
 import {
@@ -35,7 +36,6 @@ interface Analysis {
   analysis_date: string;
   readiness_score: number;
   hrv_trend: string;
-  block_effectiveness: number | null;
   agent_output: {
     readiness: string;
     summary: string;
@@ -43,7 +43,6 @@ interface Analysis {
     trainingImplication?: string;
     flags: string[];
     recommendation: string;
-    blockScoreExplanation?: string;
   };
 }
 
@@ -577,11 +576,19 @@ export default function DashboardPage() {
     },
   );
 
+  const { data: tqData } = useSWR<{
+    score: number;
+    label: string;
+    trend: string;
+  }>(`${API_URL}/analysis/${ATHLETE_ID}/training-quality`, fetcher, {
+    refreshInterval: 0,
+    revalidateOnFocus: false,
+  });
+
   const [analyzingToday, setAnalyzingToday] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null,
   );
-  const [showBlockScoreInfo, setShowBlockScoreInfo] = useState(false);
 
   useEffect(() => {
     if (!isLoading && data && !data.workout && !analyzingToday) {
@@ -815,54 +822,22 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Block Effectiveness */}
-                {analysis?.block_effectiveness != null && (
+                {/* Training Quality */}
+                {tqData?.score != null && (
                   <div className="space-y-1 text-center">
-                    <div className="relative flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
-                        Block Score
-                      </p>
-                      {/* Info Icon */}
-                      <button
-                        onMouseEnter={() => setShowBlockScoreInfo(true)}
-                        onMouseLeave={() => setShowBlockScoreInfo(false)}
-                        onClick={() =>
-                          setShowBlockScoreInfo(!showBlockScoreInfo)
-                        }
-                        className="text-muted hover:text-text transition-colors"
-                        aria-label="Block Score Information"
-                      >
-                        <svg
-                          className="w-3 h-3"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-
-                      {/* Tooltip - positioned absolutely to not affect layout */}
-                      {showBlockScoreInfo && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 z-50 bg-bg-card border-2 border-teal rounded-lg shadow-xl p-3 text-xs text-text leading-relaxed pointer-events-none">
-                          {analysis.agent_output?.blockScoreExplanation ??
-                            "Block effectiveness reflects your training consistency and fitness adaptations over the past 4 weeks."}
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted">
+                      Training Quality
+                    </p>
                     <div className="flex items-center justify-center gap-1">
                       <span className="text-2xl sm:text-3xl font-bold tabular-nums text-teal">
-                        {Math.round(analysis.block_effectiveness)}
+                        {tqData.score}
                       </span>
                       <span className="text-xs sm:text-sm font-semibold text-teal">
                         /100
                       </span>
                     </div>
-                    <p className="text-[9px] text-muted">
-                      4-week effectiveness
+                    <p className="text-[9px] text-muted capitalize">
+                      {tqData.label}
                     </p>
                   </div>
                 )}
@@ -935,8 +910,7 @@ export default function DashboardPage() {
                 )}
 
                 {/* Big Picture: Block progress context */}
-                {(analysis.agent_output?.trainingImplication ||
-                  analysis.block_effectiveness != null) && (
+                {analysis.agent_output?.trainingImplication && (
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold tracking-[0.12em] uppercase text-text opacity-60">
@@ -944,28 +918,6 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="text-sm text-text leading-relaxed space-y-1">
-                      {analysis.block_effectiveness != null && (
-                        <p>
-                          Your current 4-week training block is scoring{" "}
-                          <span
-                            className={`font-semibold ${
-                              analysis.block_effectiveness >= 75
-                                ? "text-teal"
-                                : analysis.block_effectiveness >= 50
-                                  ? "text-orange"
-                                  : "text-peach"
-                            }`}
-                          >
-                            {Math.round(analysis.block_effectiveness)}/100
-                          </span>{" "}
-                          effectiveness
-                          {analysis.block_effectiveness >= 75
-                            ? " — excellent progress toward your goals."
-                            : analysis.block_effectiveness >= 50
-                              ? " — solid progress with room to optimize."
-                              : " — needs attention to get back on track."}
-                        </p>
-                      )}
                       {analysis.agent_output?.trainingImplication && (
                         <p>{analysis.agent_output.trainingImplication}</p>
                       )}
@@ -990,6 +942,9 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+
+          {/* Training Quality Card */}
+          <TrainingQualityCard athleteId={ATHLETE_ID} />
 
           {/* Workout Card */}
           <div

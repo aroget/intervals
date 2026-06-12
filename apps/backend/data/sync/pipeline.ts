@@ -64,7 +64,7 @@ export async function runSync(): Promise<void> {
   // Check for --full flag in command line args
   const isFullSync = process.argv.includes("--full");
   const daysBack = isFullSync ? 90 : 1;
-  
+
   if (isFullSync) {
     console.log("[sync] 🔄 FULL SYNC MODE: syncing last 90 days");
   }
@@ -91,11 +91,18 @@ export async function runSync(): Promise<void> {
   console.log("[sync] complete");
 }
 
-/** Sync FTP and running threshold pace from Intervals.icu into the athlete profile */
+/** Sync training thresholds and physical stats from Intervals.icu into the athlete profile */
 async function syncAthleteThresholds(): Promise<void> {
   try {
     const athlete = await fetchAthlete();
-    const { ftp, runningThresholdPace } = extractThresholds(athlete);
+    const {
+      ftp,
+      runningThresholdPace,
+      lthr,
+      maxHrCycling,
+      maxHrRunning,
+      weightKg,
+    } = extractThresholds(athlete);
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -103,6 +110,10 @@ async function syncAthleteThresholds(): Promise<void> {
     if (ftp !== null) updates.ftp = ftp;
     if (runningThresholdPace !== null)
       updates.running_threshold_pace = runningThresholdPace;
+    if (lthr !== null) updates.lthr = lthr;
+    if (maxHrCycling !== null) updates.max_hr_cycling = maxHrCycling;
+    if (maxHrRunning !== null) updates.max_hr_running = maxHrRunning;
+    if (weightKg !== null) updates.weight_kg = weightKg;
 
     if (Object.keys(updates).length > 1) {
       await db
@@ -110,7 +121,7 @@ async function syncAthleteThresholds(): Promise<void> {
         .update(updates)
         .eq("athlete_id", ATHLETE_ID);
       console.log(
-        `[sync] thresholds — FTP: ${ftp ?? "n/a"}W, run threshold: ${runningThresholdPace ?? "n/a"}m/km`,
+        `[sync] thresholds — FTP: ${ftp ?? "n/a"}W, LTHR: ${lthr ?? "n/a"}bpm, maxHR: ${maxHrCycling ?? "n/a"}/${maxHrRunning ?? "n/a"}, weight: ${weightKg ?? "n/a"}kg`,
       );
     } else {
       console.log("[sync] thresholds — none found in Intervals profile");

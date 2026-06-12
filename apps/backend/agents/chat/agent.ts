@@ -35,7 +35,7 @@ async function buildCrossSessionContext(
     db
       .from("daily_analyses")
       .select(
-        "analysis_date, readiness_score, hrv_trend, block_effectiveness, agent_output",
+        "analysis_date, readiness_score, hrv_trend, training_quality, agent_output",
       )
       .eq("athlete_id", athleteId)
       .order("analysis_date", { ascending: false })
@@ -56,33 +56,20 @@ async function buildCrossSessionContext(
     analysesResult.status === "fulfilled" &&
     analysesResult.value.data?.length
   ) {
-    const latestAnalysis = analysesResult.value.data[0] as Record<
-      string,
-      unknown
-    >;
-    const blockEff = latestAnalysis.block_effectiveness as number | null;
-
-    if (blockEff != null) {
-      lines.push(
-        `CURRENT 4-WEEK BLOCK EFFECTIVENESS: ${Math.round(blockEff)}/100`,
-      );
-      const interpretation =
-        blockEff >= 75
-          ? "highly effective"
-          : blockEff >= 50
-            ? "moderately effective"
-            : "underperforming";
-      lines.push(
-        `  (${interpretation} — measures CTL gains + compliance - overtraining)`,
-      );
-      lines.push("");
-    }
-
     lines.push("Recent recovery analyses:");
     for (const row of analysesResult.value.data as Record<string, unknown>[]) {
       const out = (row.agent_output as Record<string, unknown>) ?? {};
+      const tq = row.training_quality as {
+        score?: number;
+        label?: string;
+        trend?: string;
+      } | null;
+      const tqStr =
+        tq?.score != null
+          ? ` | TQS ${tq.score}/100 (${tq.label}, ${tq.trend})`
+          : "";
       lines.push(
-        `  ${row.analysis_date}: readiness ${row.readiness_score}/100 (${out.readiness}) — HRV ${row.hrv_trend}`,
+        `  ${row.analysis_date}: readiness ${row.readiness_score}/100 (${out.readiness}) — HRV ${row.hrv_trend}${tqStr}`,
       );
     }
   }
@@ -241,8 +228,14 @@ export async function runChatAgent(params: {
   threadId: string;
   userMessage: string;
 }): Promise<string> {
-  const { athleteId, athleteName, athleteGoals, coachingNotes, threadId, userMessage } =
-    params;
+  const {
+    athleteId,
+    athleteName,
+    athleteGoals,
+    coachingNotes,
+    threadId,
+    userMessage,
+  } = params;
 
   // Load current thread history + cross-session context + schedule context in parallel
   const [{ data: history }, crossSessionContext, scheduleContext] =
@@ -330,8 +323,14 @@ export async function runChatAgentStreaming(
   onChunk: (text: string) => void,
   onStatus: (text: string) => void = () => {},
 ): Promise<string> {
-  const { athleteId, athleteName, athleteGoals, coachingNotes, threadId, userMessage } =
-    params;
+  const {
+    athleteId,
+    athleteName,
+    athleteGoals,
+    coachingNotes,
+    threadId,
+    userMessage,
+  } = params;
 
   const [{ data: history }, crossSessionContext, scheduleContext] =
     await Promise.all([

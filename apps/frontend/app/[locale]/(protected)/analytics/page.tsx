@@ -8,7 +8,7 @@ import ACWRCorridorChart from "@/components/ACWRCorridorChart";
 import HRVBaselineChart from "@/components/HRVBaselineChart";
 import ReadinessPerformanceScatter from "@/components/ReadinessPerformanceScatter";
 import AerobicDecouplingChart from "@/components/AerobicDecouplingChart";
-import BlockEffectivenessTrend from "@/components/BlockEffectivenessTrend";
+import TrainingQualityHistory from "@/components/TrainingQualityHistory";
 import DailyActionFooter from "@/components/DailyActionFooter";
 import TimeframeSelectorHorizontal from "@/components/TimeframeSelectorHorizontal";
 
@@ -46,9 +46,17 @@ export default function AnalyticsPage() {
         {/* [1.5] DAILY ACTION FOOTER - Today's Workout */}
         <DailyActionFooter athleteId={ATHLETE_ID} />
 
-        {/* [1.6] BLOCK EFFECTIVENESS TREND - Current Training Block */}
+        {/* [1.6] TRAINING QUALITY HISTORY */}
         <div className="rounded-2xl border border-border bg-bg-card px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
-          <BlockEffectivenessTrend athleteId={ATHLETE_ID} />
+          <h2 className="text-xs font-semibold tracking-[0.15em] uppercase text-muted mb-1">
+            Training Quality Score
+          </h2>
+          <p className="text-xs text-muted mb-4 leading-relaxed">
+            How well you&apos;re training — built from Fitness Base, Progressive
+            Overload, Consistency, and Load Management. White line = overall
+            score (0–100).
+          </p>
+          <TrainingQualityHistory athleteId={ATHLETE_ID} days={timeframe} />
         </div>
 
         {/* [2] UNIFIED BIO-METRIC TIMELINE */}

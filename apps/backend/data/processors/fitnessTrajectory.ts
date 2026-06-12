@@ -26,15 +26,13 @@ export function getExpectedCtl(
   weekInBlock: number,
   weekType: string,
 ): number {
-  // Expected CTL gains per week by phase
   const weeklyGains: Record<string, number> = {
-    base: 3, // +3 CTL
-    build: 5, // +5 CTL
-    peak: 2, // +2 CTL
-    recovery: -3, // -3 CTL (de-load)
+    base: 3,
+    build: 5,
+    peak: 2,
+    recovery: -3,
   };
 
-  // Calculate cumulative gains up to this week
   const weekTypes = ["base", "build", "peak", "recovery"];
   let cumulativeGain = 0;
 
@@ -64,7 +62,6 @@ export function analyzeFitnessTrajectory(
   const checkpoints: FitnessCheckpoint[] = [];
   const blockStart = new Date(blockStartDate);
 
-  // Get CTL at end of each week
   for (let weekNum = 0; weekNum < 4; weekNum++) {
     const weekStart = new Date(blockStart);
     weekStart.setDate(blockStart.getDate() + weekNum * 7);
@@ -73,7 +70,6 @@ export function analyzeFitnessTrajectory(
     weekEnd.setDate(weekStart.getDate() + 6);
     const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
-    // Find last activity of the week with CTL data
     const weekActivities = activities.filter(
       (a) =>
         a.activityDate >= weekStart.toISOString().slice(0, 10) &&
@@ -92,7 +88,6 @@ export function analyzeFitnessTrajectory(
     const deviationPct =
       expectedCtl > 0 ? Math.round((deviation / expectedCtl) * 100) : 0;
 
-    // Determine trend
     let trend: "ahead" | "on_track" | "behind" | "stalled" = "on_track";
     let note = "";
 
@@ -107,7 +102,6 @@ export function analyzeFitnessTrajectory(
       note = "CTL progression on target.";
     }
 
-    // Check for stalled fitness (CTL not increasing in build weeks)
     if (
       weekNum > 0 &&
       (weekTypes[weekNum] === "build" || weekTypes[weekNum] === "peak")
@@ -143,77 +137,4 @@ export function analyzeFitnessTrajectory(
   }
 
   return checkpoints;
-}
-
-export interface SessionData {
-  sessionType: string; // key | endurance | recovery | rest
-  completed: boolean;
-  hadDeviationFlag?: boolean; // Was there a ⚠️ readiness warning?
-  deviationSeverity?: "moderate" | "major"; // Severity of the warning
-}
-
-/**
- * Calculate context-aware weighted compliance.
- * Reduces penalties for sessions skipped when system warned about low readiness.
- */
-function calculateWeightedCompliance(sessions: SessionData[]): number {
-  const baseWeights: Record<string, number> = {
-    key: 3.0, // High-quality sessions — critical for adaptation
-    endurance: 2.0, // Base building — important for fitness
-    recovery: 1.0, // Active recovery — aids adaptation
-    rest: 0.5, // Planned rest — bonus if followed
-  };
-
-  let totalWeight = 0;
-  let completedWeight = 0;
-
-  for (const session of sessions) {
-    let weight = baseWeights[session.sessionType] ?? 1.0;
-
-    // Apply penalty reduction if session was skipped with a deviation warning
-    // This rewards smart skips (following system advice) vs lazy skips
-    if (!session.completed && session.hadDeviationFlag) {
-      if (session.deviationSeverity === "major") {
-        weight *= 0.25; // 75% penalty reduction - system strongly advised skip
-      } else if (session.deviationSeverity === "moderate") {
-        weight *= 0.5; // 50% penalty reduction - system suggested caution
-      }
-    }
-
-    totalWeight += weight;
-    if (session.completed) {
-      completedWeight += weight;
-    }
-  }
-
-  return totalWeight > 0 ? (completedWeight / totalWeight) * 100 : 0;
-}
-
-/**
- * Get overall block effectiveness score (0-100).
- * Based on: CTL gains, weighted compliance (prioritizing key sessions), no overtraining indicators.
- */
-export function calculateBlockEffectiveness(
-  blockStartCtl: number,
-  blockEndCtl: number,
-  complianceRate: number,
-  overtrainingRiskDays: number,
-  sessions?: SessionData[], // Optional: for weighted compliance calculation
-): number {
-  // Expected CTL gain over 4 weeks: ~15 points (3+5+5+2)
-  const expectedGain = 15;
-  const actualGain = blockEndCtl - blockStartCtl;
-  const gainScore = Math.min(100, (actualGain / expectedGain) * 100);
-
-  // Use weighted compliance if session data provided, otherwise use raw compliance rate
-  const complianceScore =
-    sessions && sessions.length > 0
-      ? calculateWeightedCompliance(sessions)
-      : complianceRate;
-
-  // Overtraining penalty (1 day = -5 points)
-  const overtrainingPenalty = Math.min(50, overtrainingRiskDays * 5);
-
-  const raw = gainScore * 0.5 + complianceScore * 0.5 - overtrainingPenalty;
-  return Math.max(0, Math.min(100, Math.round(raw)));
 }

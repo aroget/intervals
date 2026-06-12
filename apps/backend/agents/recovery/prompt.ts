@@ -46,9 +46,6 @@ PRE-COMPUTED METRICS (authoritative — do not recalculate):
 - Chronic Training Load (CTL): ${metrics.ctl > 0 ? metrics.ctl : "unavailable (run sync first)"} (fitness indicator)
 - Training Stress Balance (TSB): ${metrics.atl > 0 && metrics.ctl > 0 ? metrics.tsb : "unavailable (run sync first)"} (form: positive=fresh, negative=fatigued)
 - Training Cycle: Week ${metrics.cycleWeekNumber}/4 — ${metrics.cycleWeekType} phase
-- Block Effectiveness: ${metrics.blockEffectiveness != null ? `${metrics.blockEffectiveness}/100` : "N/A (insufficient data)"} — measures how well current 4-week training block is translating to fitness gains (50% CTL progress + 50% compliance - overtraining penalties)
-
-IMPORTANT: If Block Effectiveness is available, provide a brief 1-2 sentence 'blockScoreExplanation' that explains what's driving this score. Reference actual patterns like compliance rate, missed key sessions, or fitness trajectory. Make it specific and actionable, not generic.
 
 Readiness interpretation guide:
   80–100 → high    (athlete can handle hard sessions)

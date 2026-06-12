@@ -131,10 +131,14 @@ ${userRequest.notes ? `  Notes: ${userRequest.notes}` : ""}
 `
     : ""
 }${weekPlanSection}${complianceSection}${
-    metrics.blockEffectiveness != null
+    metrics.trainingQuality != null
       ? `
-BLOCK EFFECTIVENESS: ${metrics.blockEffectiveness}/100
-Current 4-week training block is ${metrics.blockEffectiveness >= 75 ? "highly effective" : metrics.blockEffectiveness >= 50 ? "moderately effective" : "underperforming"}. This score reflects CTL gains vs expected, compliance rate, and overtraining risk. ${metrics.blockEffectiveness < 50 ? "Consider adjusting volume or intensity if pattern continues." : ""}
+TRAINING QUALITY: ${metrics.trainingQuality.score}/100 (${metrics.trainingQuality.label}, trend: ${metrics.trainingQuality.trend})
+  • Fitness Base (aerobic efficiency): ${metrics.trainingQuality.components.fitnessBase.score}/100
+  • Progressive Overload (TSS progression): ${metrics.trainingQuality.components.progressiveOverload.score}/100
+  • Consistency (session regularity): ${metrics.trainingQuality.components.consistency.score}/100
+  • Load Management (Foster monotony + ACWR): ${metrics.trainingQuality.components.loadManagement.score}/100
+Athlete is training ${metrics.trainingQuality.score >= 80 ? "excellently" : metrics.trainingQuality.score >= 65 ? "well" : metrics.trainingQuality.score >= 50 ? "adequately but with room to improve" : "poorly — needs intervention"}. ${metrics.trainingQuality.components.loadManagement.score < 50 ? "Load Management is low — check monotony and ACWR before adding volume." : ""}${metrics.trainingQuality.components.consistency.score < 50 ? "Consistency is low — prioritise regular training over intensity." : ""}
 
 `
       : ""

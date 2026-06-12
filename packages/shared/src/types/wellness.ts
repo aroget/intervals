@@ -22,5 +22,19 @@ export interface ComputedMetrics {
   cycleWeekNumber: 1 | 2 | 3 | 4;
   cycleWeekType: "build" | "peak" | "recovery" | "base";
   todayMaxHours: number;
-  blockEffectiveness: number | null; // 0–100, current 4-week training block effectiveness
+  trainingQuality: {
+    score: number;
+    label: "excellent" | "good" | "fair" | "poor";
+    trend: "improving" | "stable" | "declining";
+    components: {
+      fitnessBase: { score: number; weight: number; confidence: string };
+      progressiveOverload: {
+        score: number;
+        weight: number;
+        confidence: string;
+      };
+      consistency: { score: number; weight: number; confidence: string };
+      loadManagement: { score: number; weight: number; confidence: string };
+    };
+  } | null;
 }

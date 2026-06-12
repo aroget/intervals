@@ -18,6 +18,7 @@ import { analyzeAllRecoveryPatterns } from "../../data/processors/recoveryPatter
 import { predictTomorrowReadiness } from "../../data/processors/readinessPrediction.js";
 import { detectAllComplianceFrictions } from "../../data/processors/complianceFriction.js";
 import { buildComputedMetrics } from "../../data/processors/readiness.js";
+import { calculateTrainingQuality } from "../../data/processors/trainingQuality.js";
 
 // Import composite processors
 import { getBlockAnalysis } from "../../data/processors/blockAnalysis.js";
@@ -25,7 +26,6 @@ import {
   getRecoveryReadinessChart,
   getTrainingStressBalance,
   getTrainingLoadHistory,
-  getBlockEffectivenessHistory,
   getACWRChart,
   getHRVBaselineChart,
   getReadinessPerformanceChart,
@@ -212,7 +212,6 @@ analysis.get("/:athleteId/block", async (c) => {
       includeWorkouts: include.includes("workouts"),
       includeCompliance: include.includes("compliance"),
       includeFitness: include.includes("fitness"),
-      includeEffectiveness: include.includes("effectiveness"),
       includeZones: include.includes("zones"),
     });
 
@@ -270,14 +269,12 @@ analysis.get("/:athleteId/fitness-trajectory", async (c) => {
 
   const result = await getBlockAnalysis(athleteId, refDate, {
     includeFitness: true,
-    includeEffectiveness: true,
   });
 
   return c.json({
     blockStartDate: result.blockStartDate,
     baselineCtl: result.fitness?.baselineCtl ?? 0,
     checkpoints: result.fitness?.checkpoints ?? [],
-    effectiveness: result.effectiveness?.score ?? 0,
   });
 });
 
@@ -312,94 +309,209 @@ analysis.get("/:athleteId/training-load-history", async (c) => {
   return c.json({ weeks: data });
 });
 
-/** GET /analysis/:athleteId/block-history — last N blocks' effectiveness */
-analysis.get("/:athleteId/block-history", async (c) => {
+/** GET /analysis/:athleteId/training-quality — today's Training Quality Score (computes on-the-fly if not stored) */
+analysis.get("/:athleteId/training-quality", async (c) => {
   const athleteId = c.req.param("athleteId");
-  const numBlocks = parseInt(c.req.query("blocks") ?? "6", 10);
+  const date = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
 
-  const blocks = await getBlockEffectivenessHistory(athleteId, numBlocks);
-  return c.json({ blocks });
+  const { data } = await db
+    .from("daily_analyses")
+    .select("analysis_date, training_quality")
+    .eq("athlete_id", athleteId)
+    .eq("analysis_date", date)
+    .single();
+
+  // Return stored result if available
+  if (data?.training_quality) {
+    return c.json({ date: data.analysis_date, ...data.training_quality });
+  }
+
+  // Compute on-the-fly from existing activity + wellness data
+  const [activities, wellness, profile] = await Promise.all([
+    loadActivities(athleteId, 180),
+    loadWellness(athleteId, 120),
+    loadAthleteProfile(athleteId),
+  ]);
+
+  if (!activities.length) {
+    return c.json({ error: "No activity data available", date }, 404);
+  }
+
+  const activitiesAsOf = activities.filter((a) => a.activityDate <= date);
+  const wellnessAsOf = wellness.filter((w) => w.logDate <= date);
+  const tq = calculateTrainingQuality(
+    activitiesAsOf,
+    wellnessAsOf,
+    profile,
+    date,
+    [],
+  );
+
+  return c.json({ date, ...tq });
 });
 
-/** GET /analysis/:athleteId/block-effectiveness-chart — current block daily trend */
-analysis.get("/:athleteId/block-effectiveness-chart", async (c) => {
+/**
+ * POST /analysis/:athleteId/training-quality/backfill
+ * Computes and stores training_quality for all daily_analyses rows that are missing it.
+ * Query param: days=90 (default). Useful for first-run or after algorithm changes.
+ */
+analysis.post("/:athleteId/training-quality/backfill", async (c) => {
   const athleteId = c.req.param("athleteId");
-  const refDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
+  const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
+  const since = new Date(Date.now() - days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
 
-  const result = await getBlockAnalysis(athleteId, refDate, {
-    includeFitness: true,
-    includeEffectiveness: true,
-    includeZones: true,
-    includeCompliance: true,
-  });
-
-  // Fetch daily effectiveness scores for the block
-  const { data: dailyScores } = await db
+  // Load existing analysis rows that are missing training_quality
+  const { data: rows, error } = await db
     .from("daily_analyses")
-    .select("analysis_date, block_effectiveness")
+    .select("id, analysis_date, training_quality")
     .eq("athlete_id", athleteId)
-    .gte("analysis_date", result.blockStartDate)
-    .lte("analysis_date", result.blockEndDate)
+    .gte("analysis_date", since)
+    .lte("analysis_date", today)
     .order("analysis_date", { ascending: true });
 
-  // Calculate expected ranges for each day (1-28)
-  // Progressive growth: Week 1 starts low, Week 3 peaks, Week 4 stabilizes
-  const calculateExpectedRange = (
-    dayNum: number,
-  ): { min: number; max: number } => {
-    if (dayNum <= 7) {
-      // Week 1: Building baseline
-      return { min: 25 + dayNum * 2, max: 45 + dayNum * 2 };
-    } else if (dayNum <= 14) {
-      // Week 2: Ramping up
-      return { min: 35 + (dayNum - 7) * 2, max: 55 + (dayNum - 7) * 2 };
-    } else if (dayNum <= 21) {
-      // Week 3: Peak effectiveness
-      return { min: 45 + (dayNum - 14) * 2, max: 70 + (dayNum - 14) * 1.5 };
-    } else {
-      // Week 4: Recovery maintains but doesn't push higher
-      return { min: 55, max: 75 };
-    }
-  };
+  if (error) return c.json({ error: error.message }, 500);
 
-  // Build daily data points for all 28 days
-  const dailyData = [];
-  const blockStart = new Date(result.blockStartDate);
-
-  for (let i = 0; i < 28; i++) {
-    const currentDate = new Date(blockStart);
-    currentDate.setDate(blockStart.getDate() + i);
-    const dateStr = currentDate.toISOString().slice(0, 10);
-    const dayNum = i + 1;
-    const expectedRange = calculateExpectedRange(dayNum);
-
-    // Find actual score for this date
-    const dailyScore = dailyScores?.find((d) => d.analysis_date === dateStr);
-
-    dailyData.push({
-      day: dayNum,
-      date: dateStr,
-      actualScore: dailyScore?.block_effectiveness ?? null,
-      expectedMin: expectedRange.min,
-      expectedMax: expectedRange.max,
+  const missing = (rows ?? []).filter((r: any) => r.training_quality == null);
+  if (missing.length === 0) {
+    return c.json({
+      updated: 0,
+      message: "All rows already have training_quality scores.",
     });
   }
 
-  // Find the most recent actual score from daily data
-  const mostRecentScore =
-    dailyData
-      .slice()
-      .reverse()
-      .find((d) => d.actualScore !== null)?.actualScore ?? null;
+  // Bulk-load data once (extra window for the sliding computation)
+  const dataWindowDays = days + 90;
+  const [activities, wellness, profile] = await Promise.all([
+    loadActivities(athleteId, dataWindowDays),
+    loadWellness(athleteId, Math.min(dataWindowDays, 180)),
+    loadAthleteProfile(athleteId),
+  ]);
+
+  // Process each missing date in chronological order, building up pastScores for trend
+  const pastScores: number[] = [];
+  let updated = 0;
+
+  for (const row of missing as any[]) {
+    const dateStr: string = row.analysis_date;
+    const activitiesAsOf = activities.filter((a) => a.activityDate <= dateStr);
+    const wellnessAsOf = wellness.filter((w) => w.logDate <= dateStr);
+
+    const tq = calculateTrainingQuality(
+      activitiesAsOf,
+      wellnessAsOf,
+      profile,
+      dateStr,
+      [...pastScores],
+    );
+
+    const { error: updateError } = await db
+      .from("daily_analyses")
+      .update({ training_quality: tq })
+      .eq("id", row.id);
+
+    if (!updateError) {
+      updated++;
+      pastScores.push(tq.score);
+      if (pastScores.length > 14) pastScores.shift();
+    }
+  }
 
   return c.json({
-    blockStart: result.blockStartDate,
-    blockEnd: result.blockEndDate,
-    currentWeek: result.currentWeek,
-    weekType: result.weekType,
-    currentScore: mostRecentScore,
-    dailyData,
+    updated,
+    total: missing.length,
+    message: `Backfilled training_quality for ${updated}/${missing.length} rows.`,
   });
+});
+
+/** GET /analysis/:athleteId/training-quality/history — 90-day trend for history chart */
+analysis.get("/:athleteId/training-quality/history", async (c) => {
+  const athleteId = c.req.param("athleteId");
+  const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
+  const since = new Date(Date.now() - days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Load bulk data once — activities need extra history for the sliding window
+  // (fitness base uses 56-day window, so we need days + 84 days of activities)
+  const dataWindowDays = days + 90;
+  const [activities, wellness, profile, storedRows] = await Promise.all([
+    loadActivities(athleteId, dataWindowDays),
+    loadWellness(athleteId, Math.min(dataWindowDays, 180)),
+    loadAthleteProfile(athleteId),
+    db
+      .from("daily_analyses")
+      .select("analysis_date, training_quality")
+      .eq("athlete_id", athleteId)
+      .gte("analysis_date", since)
+      .lte("analysis_date", today)
+      .order("analysis_date", { ascending: true })
+      .then(({ data }) => data ?? []),
+  ]);
+
+  // Build lookup of already-stored TQ scores (skip re-computing those)
+  const stored = new Map<string, any>(
+    (storedRows as any[])
+      .filter((r) => r.training_quality != null)
+      .map((r) => [r.analysis_date, r.training_quality]),
+  );
+
+  // Enumerate each calendar date in the range that has at least one activity
+  // (avoid computing for rest days with no data at all)
+  const activityDates = new Set(activities.map((a) => a.activityDate));
+
+  // For each date in the analysis window, compute or use stored value
+  const history: any[] = [];
+  const pastScores: number[] = [];
+
+  // Enumerate dates from since → today (inclusive)
+  const cursor = new Date(since + "T00:00:00Z");
+  const end = new Date(today + "T00:00:00Z");
+
+  while (cursor <= end) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+
+    // Only emit dates that had a stored analysis OR had training activity
+    if (stored.has(dateStr) || activityDates.has(dateStr)) {
+      let tq = stored.get(dateStr);
+
+      if (!tq) {
+        // Compute on the fly — filter activities to those available as of dateStr
+        const activitiesAsOf = activities.filter(
+          (a) => a.activityDate <= dateStr,
+        );
+        const wellnessAsOf = wellness.filter((w) => w.logDate <= dateStr);
+        tq = calculateTrainingQuality(
+          activitiesAsOf,
+          wellnessAsOf,
+          profile,
+          dateStr,
+          [...pastScores],
+        );
+      }
+
+      history.push({
+        date: dateStr,
+        score: tq?.score ?? null,
+        label: tq?.label ?? null,
+        trend: tq?.trend ?? null,
+        fitnessBase: tq?.components?.fitnessBase?.score ?? null,
+        progressiveOverload: tq?.components?.progressiveOverload?.score ?? null,
+        consistency: tq?.components?.consistency?.score ?? null,
+        loadManagement: tq?.components?.loadManagement?.score ?? null,
+      });
+
+      if (tq?.score != null) pastScores.push(tq.score);
+      if (pastScores.length > 14) pastScores.shift();
+    }
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return c.json({ days, history });
 });
 
 /** GET /analysis/:athleteId/summary-metrics — aggregate metrics for dashboard */
@@ -412,7 +524,7 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
     await Promise.all([
       db
         .from("daily_analyses")
-        .select("readiness_score, block_effectiveness")
+        .select("readiness_score, training_quality")
         .eq("athlete_id", athleteId)
         .eq("analysis_date", today)
         .single(),
@@ -447,38 +559,20 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
   else if (currentTsb >= -30 && currentTsb <= -10) tsbStatus = "Optimal";
   else tsbStatus = "Moderate";
 
-  // Get block score from today's analysis (single source of truth)
-  // If not available, get compliance for display purposes
-  let blockScore = todayAnalysis?.block_effectiveness ?? null;
-  let complianceRate = 100;
-  let workoutsCompleted = 0;
-  let workoutsPrescribed = 0;
+  // Training quality score from today's analysis
+  const tqData = todayAnalysis?.training_quality as { score?: number } | null;
+  const blockScore = tqData?.score ?? null;
 
-  if (blockScore === null) {
-    // Fallback: calculate if not in daily analysis (backward compatibility)
-    const blockResult = await getBlockAnalysis(athleteId, today, {
-      includeEffectiveness: true,
-      includeCompliance: true,
-    });
-    blockScore = blockResult.effectiveness?.score ?? 0;
-    complianceRate =
-      blockResult.compliance?.overallCompliance.complianceRate ?? 100;
-    workoutsCompleted =
-      blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0;
-    workoutsPrescribed =
-      blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0;
-  } else {
-    // Just get compliance for display (no recalculation of block score)
-    const blockResult = await getBlockAnalysis(athleteId, today, {
-      includeCompliance: true,
-    });
-    complianceRate =
-      blockResult.compliance?.overallCompliance.complianceRate ?? 100;
-    workoutsCompleted =
-      blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0;
-    workoutsPrescribed =
-      blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0;
-  }
+  // Compliance via block analysis
+  const blockResult = await getBlockAnalysis(athleteId, today, {
+    includeCompliance: true,
+  });
+  const complianceRate =
+    blockResult.compliance?.overallCompliance.complianceRate ?? 100;
+  const workoutsCompleted =
+    blockResult.compliance?.overallCompliance.workoutsCompleted ?? 0;
+  const workoutsPrescribed =
+    blockResult.compliance?.overallCompliance.workoutsPrescribed ?? 0;
 
   return c.json({
     avgReadiness,
@@ -487,7 +581,7 @@ analysis.get("/:athleteId/summary-metrics", async (c) => {
     currentCtl: Math.round(currentCtl * 10) / 10,
     currentAtl: Math.round(currentAtl * 10) / 10,
     tsbStatus,
-    blockScore: Math.round(blockScore),
+    blockScore: blockScore != null ? Math.round(blockScore) : null,
     complianceRate,
     workoutsCompleted,
     workoutsPrescribed,
